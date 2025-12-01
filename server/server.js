@@ -2,32 +2,44 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
-// Завантаження змінних середовища з .env
+// Завантаження змінних середовища
+// У Railway змінні вбудовані, тому path '../.env' може не знадобитися, але помилки не викличе
 dotenv.config({ path: '../.env' }); 
 
 const app = express();
 
+// --- ВИПРАВЛЕНА ЧАСТИНА CORS ---
+const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+
+app.use(cors({
+  origin: allowedOrigin, // Дозволяємо доступ тільки твоєму фронтенду
+  credentials: true,     // Дозволяємо передавати токени/куки
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+// ------------------------------
+
 // Підключення маршрутів
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
-const taskRoutes = require('./routes/taskRoutes'); // <--- 1. ДОДАТИ ІМПОРТ
+const taskRoutes = require('./routes/taskRoutes');
 
-// Middleware
-app.use(cors()); 
+// Middleware для JSON
 app.use(express.json()); 
 
 // Використання маршрутів API
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes); 
-app.use('/api/tasks', taskRoutes); // <--- 2. ПІДКЛЮЧИТИ МАРШРУТ
+app.use('/api/tasks', taskRoutes);
 
 // Тестовий маршрут
 app.get('/', (req, res) => {
-  res.send('Server is running! Ready for API requests.');
+  res.send(`Server is running! Allowed Origin: ${allowedOrigin}`);
 });
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server працює на порті ${PORT}`);
+  console.log(`CORS дозволено для: ${allowedOrigin}`);
 });
