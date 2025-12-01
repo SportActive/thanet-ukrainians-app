@@ -1,0 +1,7 @@
+{
+  "databaseUrl": "env:DATABASE_URL", 
+  "dir": "sqls",
+  "migrationsTable": "pgmigrations",
+  "direction": "up",
+  "schema": "public"
+}
