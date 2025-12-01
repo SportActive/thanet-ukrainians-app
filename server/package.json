@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "migrate": "dotenv -e ../.env -- node-pg-migrate up",
-    "prestart": "npm run migrate"
+    "migrate": "dotenv -e ../.env -- node-pg-migrate up"
   },
   "keywords": [
     "express",
