@@ -10,17 +10,17 @@ const app = express();
 // --- 1. СПОЧАТКУ JSON ---
 app.use(express.json()); 
 
-// --- 2. НАЛАШТУВАННЯ CORS (ЄДИНЕ І ПРАВИЛЬНЕ) ---
+// --- 2. НАЛАШТУВАННЯ CORS ---
 const allowedOrigins = [
     process.env.CLIENT_URL,                            // Змінна з Railway
-    'https://alert-prosperity-production.up.railway.app', // Твій новий фронтенд
+    'https://alert-prosperity-production.up.railway.app', // Твій фронтенд
     'http://localhost:5173',                           // Локальний фронтенд
     'http://localhost:8080'                            // Локальний бекенд
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Дозволяємо, якщо origin є в списку, АБО якщо це серверний запит (без origin, як Postman)
+        // Дозволяємо, якщо origin є в списку, АБО якщо це серверний запит (без origin)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -36,7 +36,7 @@ app.use(cors({
 // Явна обробка preflight запитів
 app.options('*', cors());
 
-// Логування запитів (щоб бачити в логах Railway, хто стукає)
+// Логування запитів
 app.use((req, res, next) => {
   console.log(`📥 Запит: ${req.method} ${req.url} | Origin: ${req.headers.origin}`);
   next();
@@ -46,14 +46,14 @@ app.use((req, res, next) => {
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
-const newsRoutes = require('./routes/newsRoutes'); // <--- ДОДАТИ
+const newsRoutes = require('./routes/newsRoutes'); // <--- ТУТ МАЄ БУТИ ТІЛЬКИ ОДИН РАЗ
 
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes); 
 app.use('/api/tasks', taskRoutes);
-const newsRoutes = require('./routes/newsRoutes'); // <--- ДОДАТИ
+app.use('/api/news', newsRoutes); // <--- ПІДКЛЮЧЕННЯ
 
-// Головна сторінка (перевірка життя сервера)
+// Головна сторінка
 app.get('/', (req, res) => {
   res.send(`Server is running! 🚀`);
 });
