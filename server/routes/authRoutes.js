@@ -6,8 +6,9 @@ const { protect, restrictTo } = require('../middleware/auth');
 
 const router = express.Router();
 
-const generateToken = (id, role, first_name) => {
-    return jwt.sign({ user_id: id, role, first_name }, process.env.JWT_SECRET, {
+// ОНОВЛЕНО: Додаємо whatsapp у токен
+const generateToken = (id, role, first_name, whatsapp) => {
+    return jwt.sign({ user_id: id, role, first_name, whatsapp }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 };
@@ -17,7 +18,7 @@ router.post('/register', async (req, res) => {
     const { first_name, last_name, email, password, whatsapp, uk_phone } = req.body;
 
     if (!first_name || !last_name || !email || !password || !whatsapp) {
-        return res.status(400).json({ message: 'Ім\'я, Прізвище, Email, Пароль та WhatsApp є обов\'язковими!' });
+        return res.status(400).json({ message: 'Всі поля є обов\'язковими!' });
     }
 
     try {
@@ -40,7 +41,8 @@ router.post('/register', async (req, res) => {
             user_id: user.user_id,
             first_name: user.first_name,
             role: user.role,
-            token: generateToken(user.user_id, user.role, user.first_name),
+            // Передаємо whatsapp у токен
+            token: generateToken(user.user_id, user.role, user.first_name, user.whatsapp),
         });
     } catch (err) {
         console.error(err.message);
@@ -70,7 +72,8 @@ router.post('/login', async (req, res) => {
             user_id: user.user_id,
             first_name: user.first_name,
             role: user.role,
-            token: generateToken(user.user_id, user.role, user.first_name),
+            // Передаємо whatsapp у токен
+            token: generateToken(user.user_id, user.role, user.first_name, user.whatsapp),
         });
     } catch (err) {
         console.error(err.message);
@@ -78,13 +81,13 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// @route   GET /api/auth/users (Тільки Адмін)
+// @route   GET /api/auth/users
 router.get('/users', protect, restrictTo(['Admin']), async (req, res) => {
     try {
         const result = await db.query('SELECT user_id, first_name, last_name, email, whatsapp, uk_phone, role FROM users ORDER BY user_id ASC');
         res.json(result.rows);
     } catch (err) {
-        console.error('Помилка отримання користувачів:', err.message);
+        console.error(err.message);
         res.status(500).json({ message: 'Server Error' });
     }
 });
@@ -93,9 +96,7 @@ router.get('/users', protect, restrictTo(['Admin']), async (req, res) => {
 router.put('/users/:id/role', protect, restrictTo(['Admin']), async (req, res) => {
     const { role } = req.body;
     const { id } = req.params;
-
-    // ОСЬ ТУТ БУЛА ПОМИЛКА: додаємо Editor і перевіряємо дужки
-    const validRoles = ['User', 'Organizer', 'Admin', 'Editor']; 
+    const validRoles = ['User', 'Organizer', 'Admin', 'Editor'];
     
     if (!validRoles.includes(role)) {
         return res.status(400).json({ message: 'Недопустима роль' });
@@ -103,9 +104,9 @@ router.put('/users/:id/role', protect, restrictTo(['Admin']), async (req, res) =
 
     try {
         await db.query('UPDATE users SET role = $1 WHERE user_id = $2', [role, id]);
-        res.json({ message: `Роль користувача оновлено на ${role}` });
+        res.json({ message: `Роль оновлено на ${role}` });
     } catch (err) {
-        console.error('Помилка зміни ролі:', err.message);
+        console.error(err.message);
         res.status(500).json({ message: 'Server Error' });
     }
 });
