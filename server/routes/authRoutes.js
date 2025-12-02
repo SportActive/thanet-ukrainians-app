@@ -14,7 +14,6 @@ const generateToken = (id, role, first_name) => {
 
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
-    // 1. Очікуємо нові поля
     const { first_name, last_name, email, password, whatsapp, uk_phone } = req.body;
 
     if (!first_name || !last_name || !email || !password || !whatsapp) {
@@ -30,7 +29,6 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // 2. Записуємо нові поля в базу
         const newUser = await db.query(
             'INSERT INTO users (first_name, last_name, email, password_hash, role, whatsapp, uk_phone) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [first_name, last_name, email, hashedPassword, 'User', whatsapp, uk_phone]
@@ -83,7 +81,6 @@ router.post('/login', async (req, res) => {
 // @route   GET /api/auth/users (Тільки Адмін)
 router.get('/users', protect, restrictTo(['Admin']), async (req, res) => {
     try {
-        // 3. Вибираємо whatsapp та uk_phone замість phone
         const result = await db.query('SELECT user_id, first_name, last_name, email, whatsapp, uk_phone, role FROM users ORDER BY user_id ASC');
         res.json(result.rows);
     } catch (err) {
@@ -97,8 +94,10 @@ router.put('/users/:id/role', protect, restrictTo(['Admin']), async (req, res) =
     const { role } = req.body;
     const { id } = req.params;
 
-  //  const validRoles = ['User', 'Organizer', 'Admin'];
-    const validRoles = ['User', 'Organizer', 'Admin', 'Editor']; // Додали Editor    if (!validRoles.includes(role)) {
+    // ОСЬ ТУТ БУЛА ПОМИЛКА: додаємо Editor і перевіряємо дужки
+    const validRoles = ['User', 'Organizer', 'Admin', 'Editor']; 
+    
+    if (!validRoles.includes(role)) {
         return res.status(400).json({ message: 'Недопустима роль' });
     }
 
