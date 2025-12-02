@@ -438,7 +438,7 @@ const CalendarPage = ({ API_URL, user }) => {
                             
                             <div className="grid grid-cols-2 gap-4 mt-6">
                                 <button onClick={() => setMode('register')} className="py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition">
-                                    🎫 Зареєструватися
+                                    🎫 Зареєструватись на подію
                                 </button>
                                 <button onClick={() => setMode('volunteer')} className="py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition">
                                     💪 Стати волонтером
