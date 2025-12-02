@@ -6,35 +6,16 @@ dotenv.config({ path: '../.env' });
 
 const app = express();
 
-// --- СПОЧАТКУ JSON MIDDLEWARE ---
 app.use(express.json()); 
 
-// --- ПОТІМ CORS ---
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
-
-// Логування для дебагу
-app.use((req, res, next) => {
-  console.log(`Запит від origin: ${req.headers.origin}`);
-  next();
-});
-
+// --- ТИМЧАСОВО: ДОЗВОЛИТИ ВСІ ДОМЕНИ ---
 app.use(cors({
-  origin: function(origin, callback) {
-    // Дозволяємо запити без origin (Postman, curl) та від нашого фронтенду
-    if (!origin || origin === allowedOrigin) {
-      callback(null, true);
-    } else {
-      console.log(`❌ CORS заблоковано для: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Явна обробка preflight
-app.options('*', cors());
+console.log('⚠️ CORS налаштовано на "*" (всі домени дозволені)');
 
 // Підключення маршрутів
 const authRoutes = require('./routes/authRoutes');
@@ -46,12 +27,11 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tasks', taskRoutes);
 
 app.get('/', (req, res) => {
-  res.send(`Server is running! Allowed Origin: ${allowedOrigin}`);
+  res.send('Server is running with CORS: *');
 });
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server працює на порті ${PORT}`);
-  console.log(`CORS дозволено для: ${allowedOrigin}`);
 });
