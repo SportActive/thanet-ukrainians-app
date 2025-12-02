@@ -8,59 +8,82 @@ const router = express.Router();
 const organizerProtect = [protect, restrictTo(['Admin', 'Organizer'])];
 
 // @route   POST /api/tasks
-// @desc    Створити нове завдання для події (Модуль 2)
-// Видалено console.log для уникнення збою
+// @desc    Створити нове завдання для події
 router.post('/', organizerProtect, async (req, res) => {
-    
     try {
-        // Очікувані поля з TaskForm
         const { event_id, title, description, required_volunteers, deadline_time } = req.body;
         
-        // 1. Примусове перетворення даних
+        // Примусове перетворення даних
         const finalEventId = parseInt(event_id);
         const finalVolunteers = parseInt(required_volunteers);
         const finalDeadline = deadline_time || null;
         
-        // 2. Перевірка валідності даних
+        // Валідація
         if (isNaN(finalEventId) || finalEventId <= 0 || !title || isNaN(finalVolunteers) || finalVolunteers <= 0) {
-            console.error('TRACE: Недійсні дані для завдання. body:', req.body);
             return res.status(400).json({ message: 'Обов\'язкові поля мають бути коректними.' });
         }
 
-        // 3. Перевірка існування події (виконується в базі даних, але тут залишаємо логіку)
+        // Перевірка існування події
         const eventCheck = await db.query('SELECT event_id FROM events WHERE event_id = $1', [finalEventId]);
         if (eventCheck.rows.length === 0) {
-            return res.status(404).json({ message: 'Помилка: Вибрана подія не знайдена у базі даних.' });
+            return res.status(404).json({ message: 'Помилка: Вибрана подія не знайдена.' });
         }
         
-        // 4. Вставка завдання
+        // Вставка завдання
         const queryText = `
             INSERT INTO tasks (event_id, title, description, required_volunteers, deadline_time, status) 
             VALUES ($1, $2, $3, $4, $5, 'Open') 
             RETURNING *
         `;
-        const queryValues = [finalEventId, title, description, finalVolunteers, finalDeadline];
-
-        const result = await db.query(queryText, queryValues);
+        const result = await db.query(queryText, [finalEventId, title, description, finalVolunteers, finalDeadline]);
         result.rows[0].signed_up_volunteers = 0; 
         
-        // 5. Успіх
         res.status(201).json(result.rows[0]);
 
     } catch (err) {
-        // !!! ЦЕЙ БЛОК МАЄ ПРАЦЮВАТИ !!!
-        console.error('КРИТИЧНА ПОМИЛКА API/TASK (Збій в try-блоці):', err.stack || err.message); 
-        res.status(500).json({ message: `Критична помилка сервера. Перевірте консоль: ${err.message || 'Невідома помилка.'}` });
+        console.error('API/TASK Error:', err.message); 
+        res.status(500).json({ message: `Server error: ${err.message}` });
+    }
+});
+
+// @route   DELETE /api/tasks/:id
+// @desc    Видалити завдання
+router.delete('/:id', organizerProtect, async (req, res) => {
+    try {
+        // Спочатку видаляємо записи волонтерів на це завдання, щоб уникнути помилок foreign key
+        await db.query('DELETE FROM volunteer_signups WHERE task_id = $1', [req.params.id]);
+        // Тепер видаляємо саме завдання
+        await db.query('DELETE FROM tasks WHERE task_id = $1', [req.params.id]);
+        
+        res.json({ message: 'Завдання видалено' });
+    } catch (err) {
+        console.error('Помилка видалення завдання:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   PUT /api/tasks/:id
+// @desc    Оновити завдання
+router.put('/:id', organizerProtect, async (req, res) => {
+    const { title, description, required_volunteers, deadline_time } = req.body;
+    try {
+        const result = await db.query(
+            `UPDATE tasks SET title=$1, description=$2, required_volunteers=$3, deadline_time=$4 WHERE task_id=$5 RETURNING *`,
+            [title, description, required_volunteers, deadline_time, req.params.id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Помилка оновлення завдання:', err);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
 // @route   GET /api/tasks/:event_id
-// @desc    Отримати всі завдання для конкретної події (Помилка 404 виникала тут)
+// @desc    Отримати всі завдання для конкретної події (для Адмінки)
 router.get('/:event_id', organizerProtect, async (req, res) => {
     const eventId = req.params.event_id;
 
     try {
-        // Використовуємо підзапит для підрахунку записаних волонтерів
         const result = await db.query(
             `SELECT 
                 t.*,
@@ -109,59 +132,26 @@ router.get('/public/:event_id', async (req, res) => {
 });
 
 // @route   POST /api/tasks/guest-signup
-// @desc    Запис гостя на конкретне завдання
+// @desc    Запис гостя на конкретне завдання (ОНОВЛЕНО: додано comment)
 router.post('/guest-signup', async (req, res) => {
-    const { task_id, name, whatsapp, uk_phone } = req.body;
+    const { task_id, name, whatsapp, uk_phone, comment } = req.body;
 
     if (!task_id || !name || !whatsapp) {
-        return res.status(400).json({ message: 'Неповні дані.' });
+        return res.status(400).json({ message: 'Неповні дані. Ім\'я та WhatsApp обов\'язкові.' });
     }
 
     try {
-        // Перевіряємо, чи є ще місця (опціонально, але бажано)
-        // ... тут можна додати логіку перевірки
-
         const queryText = `
-            INSERT INTO volunteer_signups (task_id, guest_name, guest_whatsapp, guest_uk_phone, user_id)
-            VALUES ($1, $2, $3, $4, NULL)
+            INSERT INTO volunteer_signups (task_id, guest_name, guest_whatsapp, guest_uk_phone, user_id, comment)
+            VALUES ($1, $2, $3, $4, NULL, $5)
         `;
-        await db.query(queryText, [task_id, name, whatsapp, uk_phone]);
+        // Передаємо comment або пустий рядок, якщо його немає
+        await db.query(queryText, [task_id, name, whatsapp, uk_phone, comment || '']);
         
         res.status(201).json({ message: 'Успішно записано на завдання!' });
     } catch (err) {
         console.error('Помилка запису на завдання:', err);
         res.status(500).json({ message: 'Помилка сервера.' });
-    }
-});
-
-// @route   DELETE /api/tasks/:id
-// @desc    Видалити завдання
-router.delete('/:id', organizerProtect, async (req, res) => {
-    try {
-        // Спочатку видаляємо записи волонтерів на це завдання
-        await db.query('DELETE FROM volunteer_signups WHERE task_id = $1', [req.params.id]);
-        await db.query('DELETE FROM tasks WHERE task_id = $1', [req.params.id]);
-        
-        res.json({ message: 'Завдання видалено' });
-    } catch (err) {
-        console.error('Помилка видалення завдання:', err);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// @route   PUT /api/tasks/:id
-// @desc    Оновити завдання
-router.put('/:id', organizerProtect, async (req, res) => {
-    const { title, description, required_volunteers, deadline_time } = req.body;
-    try {
-        const result = await db.query(
-            `UPDATE tasks SET title=$1, description=$2, required_volunteers=$3, deadline_time=$4 WHERE task_id=$5 RETURNING *`,
-            [title, description, required_volunteers, deadline_time, req.params.id]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error('Помилка оновлення завдання:', err);
-        res.status(500).json({ message: 'Server error' });
     }
 });
 
