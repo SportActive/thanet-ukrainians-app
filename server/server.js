@@ -2,30 +2,25 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
+// Завантаження змінних (для локального запуску)
 dotenv.config({ path: '../.env' }); 
 
 const app = express();
 
-// --- СПОЧАТКУ JSON MIDDLEWARE ---
+// --- 1. СПОЧАТКУ JSON ---
 app.use(express.json()); 
 
-// --- ПОТІМ CORS ---
-//const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
-
-// --- НАЛАШТУВАННЯ CORS (ОНОВЛЕНЕ) ---
-
-// Список адрес, яким ми довіряємо
+// --- 2. НАЛАШТУВАННЯ CORS (ЄДИНЕ І ПРАВИЛЬНЕ) ---
 const allowedOrigins = [
-    process.env.CLIENT_URL,                            // Те, що в Railway змінних
-    'https://alert-prosperity-production.up.railway.app', // Твій фронтенд (ЖОРСТКО)
-    'http://localhost:5173',                           // Для локальної розробки
-    'http://localhost:8080'
+    process.env.CLIENT_URL,                            // Змінна з Railway
+    'https://alert-prosperity-production.up.railway.app', // Твій новий фронтенд
+    'http://localhost:5173',                           // Локальний фронтенд
+    'http://localhost:8080'                            // Локальний бекенд
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
         // Дозволяємо, якщо origin є в списку, АБО якщо це серверний запит (без origin, як Postman)
-        // Також додаємо перевірку: якщо origin undefined (локально), теж пускаємо
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -38,33 +33,16 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// --- КІНЕЦЬ CORS ---
+// Явна обробка preflight запитів
+app.options('*', cors());
 
-// Логування для дебагу
+// Логування запитів (щоб бачити в логах Railway, хто стукає)
 app.use((req, res, next) => {
-  console.log(`Запит від origin: ${req.headers.origin}`);
+  console.log(`📥 Запит: ${req.method} ${req.url} | Origin: ${req.headers.origin}`);
   next();
 });
 
-app.use(cors({
-  origin: function(origin, callback) {
-    // Дозволяємо запити без origin (Postman, curl) та від нашого фронтенду
-    if (!origin || origin === allowedOrigin) {
-      callback(null, true);
-    } else {
-      console.log(`❌ CORS заблоковано для: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Явна обробка preflight
-app.options('*', cors());
-
-// Підключення маршрутів
+// --- 3. МАРШРУТИ ---
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
@@ -73,26 +51,18 @@ app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes); 
 app.use('/api/tasks', taskRoutes);
 
+// Головна сторінка (перевірка життя сервера)
 app.get('/', (req, res) => {
-  res.send(`Server is running! Allowed Origin: ${allowedOrigin}`);
+  res.send(`Server is running! 🚀`);
 });
 
-// Жорстко ставимо порт 8080 і слухаємо всі IP (0.0.0.0)
-const HARD_PORT = 8080;
-
-// --- ТЕСТОВИЙ МАРШРУТ (Ping) ---
+// Ping endpoint
 app.get('/api/ping', (req, res) => {
-    // 1. Цей рядок ми будемо шукати в логах Railway
-    console.log('🔔 [PING] Отримано запит з браузера/фронтенду!'); 
-    
-    // 2. Відповідь для браузера
-    res.json({ 
-        message: 'PONG! Сервер живий і чує тебе.', 
-        timestamp: new Date().toISOString() 
-    });
+    res.json({ message: 'PONG! Сервер працює коректно.', timestamp: new Date() });
 });
 
-app.listen(HARD_PORT, '0.0.0.0', () => {
-  console.log(`!!! SERVER STARTED FORCEFULLY ON PORT ${HARD_PORT} !!!`);
-
+// --- 4. ЗАПУСК ---
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`!!! SERVER STARTED ON PORT ${PORT} !!!`);
 });
