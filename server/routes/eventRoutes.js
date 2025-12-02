@@ -98,5 +98,64 @@ router.post('/volunteer-guest', async (req, res) => {
         res.status(500).json({ message: 'Помилка сервера. Спробуйте пізніше.' });
     }
 });
+// @route   DELETE /api/events/:id
+// @desc    Видалити подію (Тільки Адмін або Власник)
+router.delete('/:id', organizerProtect, async (req, res) => {
+    const eventId = req.params.id;
+    const userId = req.user.user_id;
+    const userRole = req.user.role;
+
+    try {
+        // 1. Перевірка прав (чи це подія цього організатора?)
+        const eventCheck = await db.query('SELECT organizer_id FROM events WHERE event_id = $1', [eventId]);
+        if (eventCheck.rows.length === 0) {
+            return res.status(404).json({ message: 'Подію не знайдено' });
+        }
+
+        if (userRole !== 'Admin' && eventCheck.rows[0].organizer_id !== userId) {
+            return res.status(403).json({ message: 'Ви не маєте прав видаляти цю подію' });
+        }
+
+        // 2. Видалення (спочатку завдання, потім подія - або налаштуйте CASCADE в SQL)
+        await db.query('DELETE FROM volunteer_signups WHERE task_id IN (SELECT task_id FROM tasks WHERE event_id = $1)', [eventId]);
+        await db.query('DELETE FROM tasks WHERE event_id = $1', [eventId]); // Видаляємо завдання події
+        await db.query('DELETE FROM events WHERE event_id = $1', [eventId]); // Видаляємо подію
+
+        res.json({ message: 'Подію успішно видалено' });
+    } catch (err) {
+        console.error('Помилка видалення події:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   PUT /api/events/:id
+// @desc    Оновити подію
+router.put('/:id', organizerProtect, async (req, res) => {
+    const eventId = req.params.id;
+    const { title, category, start_datetime, end_datetime, description, location_name } = req.body;
+    const userId = req.user.user_id;
+    const userRole = req.user.role;
+
+    try {
+        const eventCheck = await db.query('SELECT organizer_id FROM events WHERE event_id = $1', [eventId]);
+        if (eventCheck.rows.length === 0) return res.status(404).json({ message: 'Подію не знайдено' });
+
+        if (userRole !== 'Admin' && eventCheck.rows[0].organizer_id !== userId) {
+            return res.status(403).json({ message: 'Немає прав на редагування' });
+        }
+
+        const queryText = `
+            UPDATE events 
+            SET title=$1, category=$2, start_datetime=$3, end_datetime=$4, description=$5, location_name=$6
+            WHERE event_id=$7
+            RETURNING *
+        `;
+        const result = await db.query(queryText, [title, category, start_datetime, end_datetime, description, location_name, eventId]);
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Помилка оновлення події:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 module.exports = router;

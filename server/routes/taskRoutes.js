@@ -134,5 +134,35 @@ router.post('/guest-signup', async (req, res) => {
     }
 });
 
+// @route   DELETE /api/tasks/:id
+// @desc    Видалити завдання
+router.delete('/:id', organizerProtect, async (req, res) => {
+    try {
+        // Спочатку видаляємо записи волонтерів на це завдання
+        await db.query('DELETE FROM volunteer_signups WHERE task_id = $1', [req.params.id]);
+        await db.query('DELETE FROM tasks WHERE task_id = $1', [req.params.id]);
+        
+        res.json({ message: 'Завдання видалено' });
+    } catch (err) {
+        console.error('Помилка видалення завдання:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   PUT /api/tasks/:id
+// @desc    Оновити завдання
+router.put('/:id', organizerProtect, async (req, res) => {
+    const { title, description, required_volunteers, deadline_time } = req.body;
+    try {
+        const result = await db.query(
+            `UPDATE tasks SET title=$1, description=$2, required_volunteers=$3, deadline_time=$4 WHERE task_id=$5 RETURNING *`,
+            [title, description, required_volunteers, deadline_time, req.params.id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Помилка оновлення завдання:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 module.exports = router;
