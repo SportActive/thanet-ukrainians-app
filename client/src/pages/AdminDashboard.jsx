@@ -92,12 +92,13 @@ const AdminDashboard = ({ user, API_URL }) => {
     const [eventDetails, setEventDetails] = useState(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
 
-    // --- NEW STATES FOR NEWS ---
+    // --- STATES FOR NEWS ---
     const [newsList, setNewsList] = useState([]);
+    const [editingNews, setEditingNews] = useState(null); // НОВЕ: для редагування
     const [newsTitle, setNewsTitle] = useState('');
     const [newsContent, setNewsContent] = useState('');
     const [newsImage, setNewsImage] = useState('');
-    const [newsType, setNewsType] = useState('News'); // 'News' or 'Announcement'
+    const [newsType, setNewsType] = useState('News'); 
 
     // Form fields for Events
     const [title, setTitle] = useState('');
@@ -137,8 +138,6 @@ const AdminDashboard = ({ user, API_URL }) => {
          if(!id) return; setLoadingDetails(true);
          try { const res = await axios.get(`${API_URL}/events/${id}/details`, { headers: { Authorization: `Bearer ${token}` } }); setEventDetails(res.data); } catch(e){} finally { setLoadingDetails(false); }
     };
-
-    // --- NEW FETCH FOR NEWS ---
     const fetchNews = async () => {
         try {
             const res = await axios.get(`${API_URL}/news/public`); 
@@ -149,7 +148,7 @@ const AdminDashboard = ({ user, API_URL }) => {
     useEffect(() => {
         fetchEvents();
         if (user.role === 'Admin') fetchUsers();
-        fetchNews(); // Завантажуємо новини при старті
+        fetchNews(); 
     }, []);
 
     useEffect(() => {
@@ -183,21 +182,48 @@ const AdminDashboard = ({ user, API_URL }) => {
         try { await axios.put(`${API_URL}/auth/users/${uid}/role`, {role}, { headers: { Authorization: `Bearer ${token}` } }); setMessage(`Роль змінено на ${role}`); fetchUsers(); } catch(e){ alert('Error'); }
     };
 
-    // --- NEW HANDLERS FOR NEWS ---
+    // --- HANDLERS FOR NEWS (ОНОВЛЕНО) ---
+    
+    // Заповнити форму даними новини
+    const startEditNews = (n) => {
+        setEditingNews(n);
+        setNewsTitle(n.title);
+        setNewsContent(n.content);
+        setNewsImage(n.image_url || '');
+        setNewsType(n.type);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setMessage('✏️ Режим редагування');
+    };
+
+    const cancelEditNews = () => {
+        setEditingNews(null);
+        setNewsTitle('');
+        setNewsContent('');
+        setNewsImage('');
+        setMessage('');
+    };
+
     const handleSaveNews = async (e) => {
         e.preventDefault();
+        const newsData = { title: newsTitle, content: newsContent, image_url: newsImage, type: newsType };
+        
         try {
-            await axios.post(`${API_URL}/news`, {
-                title: newsTitle,
-                content: newsContent,
-                image_url: newsImage,
-                type: newsType
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            setMessage('✅ Новину/Анонс опубліковано!');
+            if (editingNews) {
+                // UPDATE (PUT)
+                await axios.put(`${API_URL}/news/${editingNews.news_id}`, newsData, { headers: { Authorization: `Bearer ${token}` } });
+                setMessage('✅ Зміни збережено!');
+                setEditingNews(null);
+            } else {
+                // CREATE (POST)
+                await axios.post(`${API_URL}/news`, newsData, { headers: { Authorization: `Bearer ${token}` } });
+                setMessage('✅ Опубліковано!');
+            }
+            
+            // Скидання
             setNewsTitle(''); setNewsContent(''); setNewsImage('');
             fetchNews();
         } catch (error) {
-            setMessage('❌ Помилка публікації.');
+            setMessage('❌ Помилка збереження.');
         }
     };
     
@@ -300,12 +326,22 @@ const AdminDashboard = ({ user, API_URL }) => {
         </div>
     );
 
-    // --- НОВА В'ЮШКА ДЛЯ НОВИН ---
+    // --- ОНОВЛЕНА В'ЮШКА ДЛЯ НОВИН ---
     const renderNewsView = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
-            {/* Форма створення */}
+            {/* Форма створення/редагування */}
             <div className="lg:col-span-2 bg-white p-6 shadow-xl rounded-xl border border-pink-200">
-                <h3 className="text-2xl font-semibold text-pink-700 mb-6">📢 Публікація Новини / Анонсу</h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-semibold text-pink-700">
+                        {editingNews ? '✏️ Редагування Новини' : '📢 Публікація Новини / Анонсу'}
+                    </h3>
+                    {editingNews && (
+                        <button onClick={cancelEditNews} className="text-sm bg-gray-100 px-3 py-1 rounded hover:bg-gray-200">
+                            Скасувати
+                        </button>
+                    )}
+                </div>
+                
                 {message && <div className="p-3 bg-blue-50 text-blue-800 rounded mb-4">{message}</div>}
                 
                 <form onSubmit={handleSaveNews} className="space-y-4">
@@ -327,12 +363,14 @@ const AdminDashboard = ({ user, API_URL }) => {
                     
                     <div>
                         <input type="text" placeholder="Посилання на зображення/рекламну плашку (URL)" value={newsImage} onChange={e => setNewsImage(e.target.value)} className="w-full p-3 border rounded-lg" />
-                        <p className="text-xs text-gray-500 mt-1">Скопіюйте сюди посилання на картинку (наприклад, з Google Drive або Imgur).</p>
+                        <p className="text-xs text-gray-500 mt-1">Скопіюйте сюди посилання на картинку (наприклад, з Imgur).</p>
                     </div>
 
                     <textarea placeholder="Текст новини чи анонсу..." value={newsContent} onChange={e => setNewsContent(e.target.value)} rows="5" required className="w-full p-3 border rounded-lg" />
 
-                    <button type="submit" className="w-full bg-pink-600 text-white font-bold py-3 rounded-lg hover:bg-pink-700 transition">Опублікувати</button>
+                    <button type="submit" className={`w-full text-white font-bold py-3 rounded-lg transition ${editingNews ? 'bg-orange-500 hover:bg-orange-600' : 'bg-pink-600 hover:bg-pink-700'}`}>
+                        {editingNews ? 'Зберегти Зміни' : 'Опублікувати'}
+                    </button>
                 </form>
             </div>
 
@@ -340,13 +378,16 @@ const AdminDashboard = ({ user, API_URL }) => {
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 h-fit max-h-[800px] overflow-y-auto">
                 <h4 className="font-bold text-gray-700 mb-4 sticky top-0 bg-gray-50 pb-2">Архіви Публікацій</h4>
                 {newsList.map(n => (
-                    <div key={n.news_id} className="bg-white p-3 mb-3 rounded shadow-sm border flex flex-col gap-2">
+                    <div key={n.news_id} className={`bg-white p-3 mb-3 rounded shadow-sm border flex flex-col gap-2 ${editingNews?.news_id === n.news_id ? 'ring-2 ring-orange-400' : ''}`}>
                         {n.image_url && <img src={n.image_url} alt="preview" className="w-full h-24 object-cover rounded" />}
                         <div>
                             <span className={`text-xs px-2 py-1 rounded text-white ${n.type === 'Announcement' ? 'bg-pink-500' : 'bg-blue-500'}`}>{n.type === 'Announcement' ? 'Анонс' : 'Новина'}</span>
                             <h5 className="font-bold mt-1">{n.title}</h5>
                         </div>
-                        <button onClick={() => handleDeleteNews(n.news_id)} className="text-xs text-red-600 border border-red-200 rounded py-1 hover:bg-red-50">Видалити</button>
+                        <div className="flex gap-2 justify-end mt-2">
+                            <button onClick={() => startEditNews(n)} className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100">✏️ Ред.</button>
+                            <button onClick={() => handleDeleteNews(n.news_id)} className="text-xs bg-red-50 text-red-600 border border-red-200 rounded px-2 py-1 hover:bg-red-100">🗑️ Вид.</button>
+                        </div>
                     </div>
                 ))}
             </div>

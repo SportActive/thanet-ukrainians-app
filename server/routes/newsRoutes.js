@@ -39,7 +39,31 @@ router.post('/', editorProtect, async (req, res) => {
     }
 });
 
+// @route   PUT /api/news/:id
+// @desc    Оновити новину (НОВЕ)
+router.put('/:id', editorProtect, async (req, res) => {
+    const { title, content, image_url, type } = req.body;
+    const newsId = req.params.id;
+
+    try {
+        const result = await db.query(
+            'UPDATE news SET title=$1, content=$2, image_url=$3, type=$4 WHERE news_id=$5 RETURNING *',
+            [title, content, image_url, type, newsId]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Новину не знайдено' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // @route   DELETE /api/news/:id
+// @desc    Видалити новину
 router.delete('/:id', editorProtect, async (req, res) => {
     try {
         await db.query('DELETE FROM news WHERE news_id = $1', [req.params.id]);
