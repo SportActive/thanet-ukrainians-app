@@ -7,7 +7,6 @@ import {
 } from 'date-fns';
 import { uk } from 'date-fns/locale';
 
-// ПРИЙМАЄМО НОВІ ПРОПСИ: targetEvent та onTargetHandled
 const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   const [events, setEvents] = useState([]); 
   const [loading, setLoading] = useState(true);
@@ -49,9 +48,8 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     fetchEvents();
   }, [API_URL]);
 
-  // --- [ВАЖЛИВО] ОБРОБКА ПЕРЕХОДУ З НОВИН ---
+  // --- ОБРОБКА ПЕРЕХОДУ З НОВИН ---
   useEffect(() => {
-      // Якщо є цільова подія і список подій вже завантажено
       if (targetEvent && events.length > 0) {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
@@ -59,12 +57,15 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
               // 1. Перемикаємо календар на дату події
               setCurrentDate(new Date(targetEvent.date));
               
-              // 2. Відкриваємо модалку цієї події
+              // 2. Відкриваємо модалку
               setSelectedEvent(eventToOpen);
-              setMode('register'); // Одразу відкриваємо вкладку "Я буду"
-              fetchTasksForEvent(eventToOpen.event_id); // Вантажимо таски (про всяк випадок)
               
-              // 3. Сигналізуємо App.jsx, що ми обробили перехід (щоб очистити стейт)
+              // ТУТ ЗМІНА: Відкриваємо вкладку "Інфо" (view), а не реєстрацію
+              setMode('view'); 
+              
+              fetchTasksForEvent(eventToOpen.event_id);
+              
+              // 3. Сигналізуємо App.jsx
               if (onTargetHandled) onTargetHandled();
           }
       }
