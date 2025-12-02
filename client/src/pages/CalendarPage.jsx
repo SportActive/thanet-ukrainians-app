@@ -24,14 +24,14 @@ const CalendarPage = ({ API_URL, user }) => {
   const [guestName, setGuestName] = useState('');
   const [guestWhatsapp, setGuestWhatsapp] = useState('');
   const [guestUkPhone, setGuestUkPhone] = useState('');
-  const [volComment, setVolComment] = useState(''); // Коментар волонтера
+  const [volComment, setVolComment] = useState(''); 
 
   // --- STATES FOR REGISTRATION FORM (GUESTS) ---
   const [regName, setRegName] = useState('');
   const [regContact, setRegContact] = useState('');
   const [regAdults, setRegAdults] = useState(1);
   const [regChildren, setRegChildren] = useState(0);
-  const [regComment, setRegComment] = useState(''); // Коментар учасника
+  const [regComment, setRegComment] = useState(''); 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -83,7 +83,7 @@ const CalendarPage = ({ API_URL, user }) => {
   // --- ФУНКЦІЇ МОДАЛЬНОГО ВІКНА ---
   const openModal = (event) => {
     setSelectedEvent(event);
-    setMode('view'); // Скидаємо на перегляд при відкритті
+    setMode('view'); 
     fetchTasksForEvent(event.event_id); 
   };
 
@@ -91,20 +91,26 @@ const CalendarPage = ({ API_URL, user }) => {
     setSelectedEvent(null);
     setEventTasks([]);
     setActiveTaskId(null);
-    
-    // Скидання полів форм
     setGuestName(''); setGuestWhatsapp(''); setGuestUkPhone(''); setVolComment('');
     setRegName(''); setRegContact(''); setRegAdults(1); setRegChildren(0); setRegComment('');
-    
     setIsSubmitting(false);
   };
 
-  // --- ЛОГІКА РЕЄСТРАЦІЇ УЧАСНИКА (СІМ'Ї/ГОСТЯ) ---
+  // --- [ВИПРАВЛЕНО] ЛОГІКА РЕЄСТРАЦІЇ УЧАСНИКА ---
   const handleEventRegistration = async () => {
-    // Якщо не авторизований, вимагаємо ім'я та контакт
-    if (!user && (!regName || !regContact)) {
-        alert("Будь ласка, введіть Ваше Ім'я та номер WhatsApp!");
+    // 1. Визначаємо, який контакт використовувати (з профілю або з форми)
+    const contactToSend = user?.whatsapp || regContact;
+    const nameToSend = user ? `${user.first_name} ${user.last_name || ''}` : regName;
+
+    // 2. Перевірка: якщо контакту немає ні там, ні там - помилка
+    if (!contactToSend) {
+        alert("Будь ласка, вкажіть номер WhatsApp!");
         return;
+    }
+    
+    if (!nameToSend) {
+         alert("Будь ласка, вкажіть ваше Ім'я!");
+         return;
     }
 
     setIsSubmitting(true);
@@ -112,8 +118,8 @@ const CalendarPage = ({ API_URL, user }) => {
         await axios.post(`${API_URL}/events/register`, {
             event_id: selectedEvent.event_id,
             user_id: user?.user_id || null,
-            name: user ? `${user.first_name} ${user.last_name || ''}` : regName,
-            contact: user?.whatsapp || regContact, // Якщо юзер, беремо з профілю (або можна додати поле вводу)
+            name: nameToSend,
+            contact: contactToSend, 
             adults: parseInt(regAdults),
             children: parseInt(regChildren),
             comment: regComment
@@ -123,7 +129,7 @@ const CalendarPage = ({ API_URL, user }) => {
         closeModal();
     } catch (error) {
         console.error("Registration error:", error);
-        alert("Виникла помилка при реєстрації. Спробуйте пізніше.");
+        alert(`Помилка: ${error.response?.data?.message || 'Спробуйте пізніше'}`);
     } finally {
         setIsSubmitting(false);
     }
@@ -133,36 +139,40 @@ const CalendarPage = ({ API_URL, user }) => {
   const handleTaskSignup = async (taskId) => {
     setIsSubmitting(true);
     try {
+        // Та сама логіка перевірки контакту
+        const contactToSend = user?.whatsapp || guestWhatsapp;
+        
+        if (!contactToSend) {
+             alert("Будь ласка, введіть номер WhatsApp!");
+             setIsSubmitting(false);
+             return;
+        }
+
         const payload = user ? {
-             // Авторизований
              task_id: taskId,
              name: user.first_name,
-             whatsapp: user.whatsapp || 'Profile', // Тут можна було б брати реальний, якщо він є в об'єкті user
+             whatsapp: contactToSend, // Використовуємо перевірений контакт
              uk_phone: user.uk_phone || '',
              comment: volComment
         } : {
-             // Гість
              task_id: taskId,
              name: guestName,
              whatsapp: guestWhatsapp,
              uk_phone: guestUkPhone,
              comment: volComment
         };
-
-        if (!user && (!guestName || !guestWhatsapp)) {
-            alert("Будь ласка, введіть Ім'я та номер WhatsApp!");
-            setIsSubmitting(false);
-            return;
+        
+        if (!user && !guestName) {
+            alert("Введіть Ім'я!");
+            setIsSubmitting(false); return;
         }
 
         await axios.post(`${API_URL}/tasks/guest-signup`, payload);
 
         alert(user ? `Дякуємо, ${user.first_name}! Ви записані.` : `Чудово, ${guestName}! Ви записані.`);
         
-        setActiveTaskId(null); // Закриваємо форму
-        fetchTasksForEvent(selectedEvent.event_id); // Оновлюємо список
-        
-        // Очищаємо поля
+        setActiveTaskId(null); 
+        fetchTasksForEvent(selectedEvent.event_id); 
         setGuestName(''); setGuestWhatsapp(''); setGuestUkPhone(''); setVolComment('');
         
     } catch (error) {
@@ -178,47 +188,33 @@ const CalendarPage = ({ API_URL, user }) => {
     return events.filter(event => isSameDay(parseISO(event.start_datetime), day));
   };
 
-  // --- RENDER VIEW FUNCTIONS ---
-
-  const renderMonthView = () => {
+  // --- RENDER FUNCTIONS (MONTH/WEEK/DAY VIEW) ---
+  // ... (Без змін, для економії місця - вони працюють добре) ...
+    const renderMonthView = () => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
     const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
     const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
-
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
         <div className="grid grid-cols-7 bg-gray-50 border-b">
-          {weekDays.map(day => (
-            <div key={day} className="py-2 text-center text-xs font-bold text-gray-500 uppercase">{day}</div>
-          ))}
+          {weekDays.map(day => (<div key={day} className="py-2 text-center text-xs font-bold text-gray-500 uppercase">{day}</div>))}
         </div>
         <div className="grid grid-cols-7 auto-rows-fr bg-gray-200 gap-px">
           {calendarDays.map((day) => {
             const dayEvents = getEventsForDay(day);
             const isCurrentMonth = isSameMonth(day, monthStart);
             const isToday = isSameDay(day, new Date());
-
             return (
-              <div 
-                key={day.toString()}
-                onClick={() => { setCurrentDate(day); setView('day'); }}
-                className={`min-h-[100px] bg-white p-1 cursor-pointer hover:bg-indigo-50 transition ${!isCurrentMonth && 'bg-gray-50/50 text-gray-400'}`}
-              >
+              <div key={day.toString()} onClick={() => { setCurrentDate(day); setView('day'); }} className={`min-h-[100px] bg-white p-1 cursor-pointer hover:bg-indigo-50 transition ${!isCurrentMonth && 'bg-gray-50/50 text-gray-400'}`}>
                 <div className="flex justify-between items-start">
-                  <span className={`text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-indigo-600 text-white' : ''}`}>
-                    {format(day, 'd')}
-                  </span>
+                  <span className={`text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-indigo-600 text-white' : ''}`}>{format(day, 'd')}</span>
                   {dayEvents.length > 0 && <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{dayEvents.length}</span>}
                 </div>
                 <div className="mt-1 space-y-1">
-                  {dayEvents.slice(0, 3).map(ev => (
-                    <div key={ev.event_id} className="text-[10px] truncate bg-indigo-50 text-indigo-700 px-1 rounded border-l-2 border-indigo-500">
-                      {format(parseISO(ev.start_datetime), 'HH:mm')} {ev.title}
-                    </div>
-                  ))}
+                  {dayEvents.slice(0, 3).map(ev => (<div key={ev.event_id} className="text-[10px] truncate bg-indigo-50 text-indigo-700 px-1 rounded border-l-2 border-indigo-500">{format(parseISO(ev.start_datetime), 'HH:mm')} {ev.title}</div>))}
                   {dayEvents.length > 3 && <div className="text-[10px] text-gray-400 pl-1">ще +{dayEvents.length - 3}</div>}
                 </div>
               </div>
@@ -228,44 +224,25 @@ const CalendarPage = ({ API_URL, user }) => {
       </div>
     );
   };
-
   const renderWeekView = () => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 });
     const end = endOfWeek(currentDate, { weekStartsOn: 1 });
     const weekDays = eachDayOfInterval({ start, end });
-
     return (
       <div className="grid grid-cols-1 md:grid-cols-7 gap-3 animate-fade-in">
         {weekDays.map(day => {
           const dayEvents = getEventsForDay(day);
           const isToday = isSameDay(day, new Date());
-          
           return (
             <div key={day.toString()} className={`bg-white rounded-xl shadow-sm border ${isToday ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200'} flex flex-col h-full min-h-[300px]`}>
-              <div className={`p-2 text-center border-b ${isToday ? 'bg-indigo-50' : ''} rounded-t-xl`}>
-                <p className="text-xs text-gray-500 uppercase">{format(day, 'EEEE', { locale: uk })}</p>
-                <p className={`text-lg font-bold ${isToday ? 'text-indigo-600' : 'text-gray-800'}`}>{format(day, 'd MMM', { locale: uk })}</p>
-              </div>
-              
+              <div className={`p-2 text-center border-b ${isToday ? 'bg-indigo-50' : ''} rounded-t-xl`}><p className="text-xs text-gray-500 uppercase">{format(day, 'EEEE', { locale: uk })}</p><p className={`text-lg font-bold ${isToday ? 'text-indigo-600' : 'text-gray-800'}`}>{format(day, 'd MMM', { locale: uk })}</p></div>
               <div className="p-2 space-y-2 flex-grow">
-                {dayEvents.length === 0 ? (
-                  <p className="text-xs text-center text-gray-400 italic mt-4">--</p>
-                ) : (
-                  dayEvents.map(ev => (
-                    <div 
-                        key={ev.event_id} 
-                        onClick={(e) => { e.stopPropagation(); openModal(ev); }}
-                        className="cursor-pointer bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-md p-2 rounded-lg transition group"
-                    >
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-                            {format(parseISO(ev.start_datetime), 'HH:mm')}
-                        </span>
-                      </div>
+                {dayEvents.length === 0 ? (<p className="text-xs text-center text-gray-400 italic mt-4">--</p>) : (dayEvents.map(ev => (
+                    <div key={ev.event_id} onClick={(e) => { e.stopPropagation(); openModal(ev); }} className="cursor-pointer bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-md p-2 rounded-lg transition group">
+                      <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{format(parseISO(ev.start_datetime), 'HH:mm')}</span></div>
                       <p className="text-xs font-semibold text-gray-800 leading-snug group-hover:text-indigo-700">{ev.title}</p>
                     </div>
-                  ))
-                )}
+                  )))}
               </div>
             </div>
           );
@@ -273,66 +250,19 @@ const CalendarPage = ({ API_URL, user }) => {
       </div>
     );
   };
-
   const renderDayView = () => {
     const dayEvents = getEventsForDay(currentDate);
-
     return (
       <div className="max-w-4xl mx-auto animate-fade-in">
-        <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-4">
-          📅 {format(currentDate, 'd MMMM yyyy', { locale: uk })}
-          <span className="text-gray-400 text-lg font-normal">({format(currentDate, 'EEEE', { locale: uk })})</span>
-        </h3>
-
+        <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2 border-b pb-4">📅 {format(currentDate, 'd MMMM yyyy', { locale: uk })} <span className="text-gray-400 text-lg font-normal">({format(currentDate, 'EEEE', { locale: uk })})</span></h3>
         {dayEvents.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
-            <div className="text-5xl mb-4">💤</div>
-            <p className="text-gray-500 text-lg">На цей день подій поки що немає.</p>
-            <button onClick={() => setView('month')} className="mt-4 text-indigo-600 hover:underline font-medium">
-              Повернутися до календаря
-            </button>
-          </div>
+          <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-dashed border-gray-300"><div className="text-5xl mb-4">💤</div><p className="text-gray-500 text-lg">На цей день подій поки що немає.</p><button onClick={() => setView('month')} className="mt-4 text-indigo-600 hover:underline font-medium">Повернутися до календаря</button></div>
         ) : (
           <div className="space-y-6">
             {dayEvents.map(event => (
               <div key={event.event_id} className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition border border-gray-100 overflow-hidden flex flex-col md:flex-row">
-                
-                {/* ЛІВА ЧАСТИНА */}
-                <div className="bg-indigo-600 text-white p-6 flex flex-col justify-center items-center md:w-40 text-center shrink-0">
-                    <span className="text-3xl font-bold tracking-tight">
-                        {format(parseISO(event.start_datetime), 'HH:mm')}
-                    </span>
-                    {event.end_datetime && (
-                         <span className="text-indigo-200 text-sm mt-1">до {format(parseISO(event.end_datetime), 'HH:mm')}</span>
-                    )}
-                    <span className="mt-3 px-3 py-1 bg-white/20 rounded-full text-xs font-medium uppercase tracking-wider backdrop-blur-sm">
-                        {event.category || 'Подія'}
-                    </span>
-                </div>
-                
-                {/* ПРАВА ЧАСТИНА */}
-                <div className="p-6 flex-grow flex flex-col">
-                    <h4 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{event.title}</h4>
-                    
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-5">
-                        <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg">
-                            📍 {event.location_name || 'Локацію не вказано'}
-                        </div>
-                    </div>
-
-                    <div className="prose prose-sm text-gray-600 mb-6 max-w-none line-clamp-3">
-                        <p>{event.description || 'Опис відсутній.'}</p>
-                    </div>
-
-                    <div className="mt-auto flex gap-3">
-                        <button 
-                            onClick={() => openModal(event)}
-                            className="px-6 py-2.5 bg-gray-900 text-white font-semibold rounded-xl shadow hover:bg-gray-800 transition transform active:scale-95"
-                        >
-                            Детальніше / Долучитися
-                        </button>
-                    </div>
-                </div>
+                <div className="bg-indigo-600 text-white p-6 flex flex-col justify-center items-center md:w-40 text-center shrink-0"><span className="text-3xl font-bold tracking-tight">{format(parseISO(event.start_datetime), 'HH:mm')}</span>{event.end_datetime && (<span className="text-indigo-200 text-sm mt-1">до {format(parseISO(event.end_datetime), 'HH:mm')}</span>)}<span className="mt-3 px-3 py-1 bg-white/20 rounded-full text-xs font-medium uppercase tracking-wider backdrop-blur-sm">{event.category || 'Подія'}</span></div>
+                <div className="p-6 flex-grow flex flex-col"><h4 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{event.title}</h4><div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-5"><div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg">📍 {event.location_name || 'Локацію не вказано'}</div></div><div className="prose prose-sm text-gray-600 mb-6 max-w-none line-clamp-3"><p>{event.description || 'Опис відсутній.'}</p></div><div className="mt-auto flex gap-3"><button onClick={() => openModal(event)} className="px-6 py-2.5 bg-gray-900 text-white font-semibold rounded-xl shadow hover:bg-gray-800 transition transform active:scale-95">Детальніше / Долучитися</button></div></div>
               </div>
             ))}
           </div>
@@ -341,234 +271,105 @@ const CalendarPage = ({ API_URL, user }) => {
     );
   };
 
-  if (loading) return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600"></div>
-      </div>
-  );
+  if (loading) return (<div className="flex justify-center items-center min-h-[50vh]"><div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600"></div></div>);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen bg-gray-50/50">
-      
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-        <div className="text-center md:text-left min-w-[220px]">
-             <h2 className="text-3xl font-bold text-gray-800 capitalize">
-                {view === 'day' 
-                    ? format(currentDate, 'd MMM', { locale: uk }) 
-                    : format(currentDate, 'LLLL yyyy', { locale: uk })}
-            </h2>
-            <p className="text-sm text-gray-500 font-medium capitalize">
-                {view === 'month' ? 'Місячний календар' : view === 'week' ? 'Розклад на тиждень' : 'Події дня'}
-            </p>
-        </div>
-
-        <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">
-            {['month', 'week', 'day'].map((v) => (
-                <button key={v} onClick={() => setView(v)} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all duration-200 capitalize ${view === v ? 'bg-white text-indigo-600 shadow-md transform scale-105' : 'text-gray-500 hover:text-gray-700'}`}>
-                    {v === 'month' ? 'Місяць' : v === 'week' ? 'Тиждень' : 'День'}
-                </button>
-            ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-            <button onClick={prev} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 transition shadow-sm">←</button>
-            <button onClick={setToday} className="px-5 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-full border border-indigo-100 hover:bg-indigo-100 transition">Сьогодні</button>
-            <button onClick={next} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 transition shadow-sm">→</button>
-        </div>
+        <div className="text-center md:text-left min-w-[220px]"><h2 className="text-3xl font-bold text-gray-800 capitalize">{view === 'day' ? format(currentDate, 'd MMM', { locale: uk }) : format(currentDate, 'LLLL yyyy', { locale: uk })}</h2><p className="text-sm text-gray-500 font-medium capitalize">{view === 'month' ? 'Місячний календар' : view === 'week' ? 'Розклад на тиждень' : 'Події дня'}</p></div>
+        <div className="flex bg-gray-100 p-1.5 rounded-xl shadow-inner">{['month', 'week', 'day'].map((v) => (<button key={v} onClick={() => setView(v)} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all duration-200 capitalize ${view === v ? 'bg-white text-indigo-600 shadow-md transform scale-105' : 'text-gray-500 hover:text-gray-700'}`}>{v === 'month' ? 'Місяць' : v === 'week' ? 'Тиждень' : 'День'}</button>))}</div>
+        <div className="flex items-center gap-2"><button onClick={prev} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 transition shadow-sm">←</button><button onClick={setToday} className="px-5 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-full border border-indigo-100 hover:bg-indigo-100 transition">Сьогодні</button><button onClick={next} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-full text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 transition shadow-sm">→</button></div>
       </div>
+      <div className="transition-all duration-300">{view === 'month' && renderMonthView()}{view === 'week' && renderWeekView()}{view === 'day' && renderDayView()}</div>
 
-      {/* CONTENT */}
-      <div className="transition-all duration-300">
-        {view === 'month' && renderMonthView()}
-        {view === 'week' && renderWeekView()}
-        {view === 'day' && renderDayView()}
-      </div>
-
-      {/* --- МОДАЛЬНЕ ВІКНО --- */}
       {selectedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto" onClick={closeModal}>
-            <div 
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 flex flex-col animate-fade-in"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Modal Header */}
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 flex flex-col animate-fade-in" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-indigo-600 p-6 text-white shrink-0 rounded-t-2xl relative">
-                    <button onClick={closeModal} className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl transition">
-                        ✕
-                    </button>
+                    <button onClick={closeModal} className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl transition">✕</button>
                     <h3 className="text-2xl font-bold pr-8">{selectedEvent.title}</h3>
-                    <p className="opacity-90 mt-1 flex items-center gap-2">
-                        🕒 {format(parseISO(selectedEvent.start_datetime), 'd MMMM, HH:mm', { locale: uk })}
-                    </p>
+                    <p className="opacity-90 mt-1 flex items-center gap-2">🕒 {format(parseISO(selectedEvent.start_datetime), 'd MMMM, HH:mm', { locale: uk })}</p>
                 </div>
-
-                {/* --- TABS --- */}
                 <div className="flex border-b">
-                    <button 
-                        onClick={() => setMode('view')} 
-                        className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'view' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        📖 Інфо
-                    </button>
-                    <button 
-                        onClick={() => setMode('register')} 
-                        className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'register' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        🙋‍♂️ Я буду
-                    </button>
-                    <button 
-                        onClick={() => setMode('volunteer')} 
-                        className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'volunteer' ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        🤝 Допомогти
-                    </button>
+                    <button onClick={() => setMode('view')} className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'view' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'}`}>📖 Інфо</button>
+                    <button onClick={() => setMode('register')} className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'register' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:bg-gray-50'}`}>🙋‍♂️ Я буду</button>
+                    <button onClick={() => setMode('volunteer')} className={`flex-1 py-3 font-bold text-sm uppercase tracking-wide transition ${mode === 'volunteer' ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' : 'text-gray-500 hover:bg-gray-50'}`}>🤝 Допомогти</button>
                 </div>
-
                 <div className="p-6 overflow-y-auto max-h-[60vh]">
                     
-                    {/* 1. VIEW MODE (ОПИС) */}
+                    {/* VIEW MODE */}
                     {mode === 'view' && (
                         <div className="space-y-6">
-                             <div className="flex gap-2">
-                                <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium">📍 {selectedEvent.location_name || 'Локацію не вказано'}</span>
-                                <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-sm font-medium">🏷️ {selectedEvent.category || 'Подія'}</span>
-                            </div>
+                             <div className="flex gap-2"><span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium">📍 {selectedEvent.location_name || 'Локацію не вказано'}</span><span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-sm font-medium">🏷️ {selectedEvent.category || 'Подія'}</span></div>
                             <p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{selectedEvent.description || 'Опис відсутній.'}</p>
-                            
                             <div className="grid grid-cols-2 gap-4 mt-6">
-                                <button onClick={() => setMode('register')} className="py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition">
-                                    🎫 Зареєструватись на подію
-                                </button>
-                                <button onClick={() => setMode('volunteer')} className="py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition">
-                                    💪 Стати волонтером
-                                </button>
+                                {/* Оновлений текст кнопки */}
+                                <button onClick={() => setMode('register')} className="py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition">🎫 Зареєструватись на подію</button>
+                                <button onClick={() => setMode('volunteer')} className="py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition">💪 Стати волонтером</button>
                             </div>
                         </div>
                     )}
 
-                    {/* 2. REGISTER MODE (УЧАСНИК) */}
+                    {/* REGISTER MODE */}
                     {mode === 'register' && (
                         <div className="animate-fade-in space-y-4">
                             <h4 className="text-xl font-bold text-gray-800 text-center mb-4">Реєстрація на подію</h4>
                             
-                            {!user && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* [ВИПРАВЛЕНО] Тепер ми розділяємо поля. Ім'я показуємо, якщо немає юзера. */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {!user && (
                                     <label className="block text-sm font-medium text-gray-700">Ваше Ім'я*
-                                        <input type="text" value={regName} onChange={e => setRegName(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="Іван Петренко" />
+                                        <input type="text" value={regName} onChange={e => setRegName(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="Іван" />
                                     </label>
+                                )}
+
+                                {/* [ВИПРАВЛЕНО] Контакт показуємо, якщо юзера немає АБО у юзера немає WhatsApp у профілі */}
+                                {(!user || !user.whatsapp) && (
                                     <label className="block text-sm font-medium text-gray-700">Контакт (WhatsApp)*
                                         <input type="text" value={regContact} onChange={e => setRegContact(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="07..." />
                                     </label>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <label className="block text-sm font-medium text-gray-700">Дорослих
-                                    <input type="number" min="1" value={regAdults} onChange={e => setRegAdults(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" />
-                                </label>
-                                <label className="block text-sm font-medium text-gray-700">Дітей
-                                    <input type="number" min="0" value={regChildren} onChange={e => setRegChildren(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" />
-                                </label>
+                                )}
                             </div>
 
-                            <label className="block text-sm font-medium text-gray-700">Коментар (потреби, алергії...)
-                                <textarea 
-                                    value={regComment} 
-                                    onChange={e => setRegComment(e.target.value)} 
-                                    className="mt-1 w-full p-2 border rounded-lg resize-none" 
-                                    rows="2" 
-                                    placeholder="Наприклад: потрібен стілець, будуть діти..."
-                                ></textarea>
-                            </label>
-
-                            <button 
-                                onClick={handleEventRegistration} 
-                                disabled={isSubmitting} 
-                                className="w-full py-3 bg-green-600 text-white font-bold rounded-xl mt-4 hover:bg-green-700 shadow-md transition"
-                            >
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className="block text-sm font-medium text-gray-700">Дорослих <input type="number" min="1" value={regAdults} onChange={e => setRegAdults(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" /></label>
+                                <label className="block text-sm font-medium text-gray-700">Дітей <input type="number" min="0" value={regChildren} onChange={e => setRegChildren(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" /></label>
+                            </div>
+                            <label className="block text-sm font-medium text-gray-700">Коментар <textarea value={regComment} onChange={e => setRegComment(e.target.value)} className="mt-1 w-full p-2 border rounded-lg resize-none" rows="2" placeholder="Наприклад: потрібен стілець..."></textarea></label>
+                            
+                            <button onClick={handleEventRegistration} disabled={isSubmitting} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl mt-4 hover:bg-green-700 shadow-md transition">
                                 {isSubmitting ? 'Обробка...' : `Підтвердити участь (${parseInt(regAdults) + parseInt(regChildren)} осіб)`}
                             </button>
                         </div>
                     )}
 
-                    {/* 3. VOLUNTEER MODE (ЗАВДАННЯ) */}
+                    {/* VOLUNTEER MODE */}
                     {mode === 'volunteer' && (
                         <div className="animate-fade-in">
                             <h4 className="text-xl font-bold text-gray-800 mb-4">Оберіть, чим можете допомогти:</h4>
-                            
-                            {loadingTasks ? (
-                                <p className="text-center text-gray-500 py-4">Завантаження завдань...</p>
-                            ) : eventTasks.length === 0 ? (
-                                <p className="text-center text-gray-500 italic py-4">Організатор поки не створив специфічних завдань, але ви можете зв'язатися з ним напряму!</p>
-                            ) : (
+                            {loadingTasks ? (<p className="text-center text-gray-500 py-4">Завантаження завдань...</p>) : eventTasks.length === 0 ? (<p className="text-center text-gray-500 italic py-4">Організатор поки не створив специфічних завдань, але ви можете зв'язатися з ним напряму!</p>) : (
                                 <div className="space-y-4">
                                     {eventTasks.map(task => {
                                         const needed = task.required_volunteers;
                                         const taken = task.signed_up_volunteers || 0;
                                         const isFull = taken >= needed;
                                         const isSelected = activeTaskId === task.task_id;
-
                                         return (
                                             <div key={task.task_id} className={`border rounded-xl p-4 transition ${isSelected ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500' : 'border-gray-200'}`}>
                                                 <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h5 className="font-bold text-gray-800 text-lg">{task.title}</h5>
-                                                        <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                                                    </div>
-                                                    <div className="text-right shrink-0 ml-4">
-                                                        <span className={`inline-block px-2 py-1 text-xs font-bold rounded-full mb-1 ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
-                                                            {isFull ? 'Зайнято' : 'Вільно'}
-                                                        </span>
-                                                        <div className="text-xs text-gray-500">
-                                                            {taken} / {needed}
-                                                        </div>
-                                                    </div>
+                                                    <div><h5 className="font-bold text-gray-800 text-lg">{task.title}</h5><p className="text-sm text-gray-600 mt-1">{task.description}</p></div>
+                                                    <div className="text-right shrink-0 ml-4"><span className={`inline-block px-2 py-1 text-xs font-bold rounded-full mb-1 ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{isFull ? 'Зайнято' : 'Вільно'}</span><div className="text-xs text-gray-500">{taken} / {needed}</div></div>
                                                 </div>
-
-                                                {/* Кнопка "Зголоситися" (якщо не вибрано і не зайнято) */}
-                                                {!isFull && !isSelected && (
-                                                    <button 
-                                                        onClick={() => setActiveTaskId(task.task_id)}
-                                                        className="mt-3 w-full py-2 border border-orange-500 text-orange-600 font-bold rounded-lg hover:bg-orange-500 hover:text-white transition text-sm"
-                                                    >
-                                                        Зголоситися
-                                                    </button>
-                                                )}
-
-                                                {/* ФОРМА ЗАПИСУ ВОЛОНТЕРА */}
+                                                {!isFull && !isSelected && (<button onClick={() => setActiveTaskId(task.task_id)} className="mt-3 w-full py-2 border border-orange-500 text-orange-600 font-bold rounded-lg hover:bg-orange-500 hover:text-white transition text-sm">Зголоситися</button>)}
                                                 {isSelected && (
                                                     <div className="mt-4 bg-white p-4 rounded-lg border border-orange-200 animate-fade-in">
-                                                        {!user && (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                                                                <input type="text" placeholder="Ім'я" value={guestName} onChange={e => setGuestName(e.target.value)} className="p-2 border rounded text-sm w-full"/>
-                                                                <input type="text" placeholder="WhatsApp" value={guestWhatsapp} onChange={e => setGuestWhatsapp(e.target.value)} className="p-2 border rounded text-sm w-full"/>
-                                                            </div>
-                                                        )}
-                                                        
-                                                        {/* ПОЛЕ КОМЕНТАРЯ (НОВЕ) */}
-                                                        <textarea 
-                                                            placeholder="Ваш коментар (наприклад: можу прийти на 30 хв раніше)" 
-                                                            value={volComment}
-                                                            onChange={e => setVolComment(e.target.value)}
-                                                            className="w-full p-2 border rounded text-sm mb-3 resize-none"
-                                                            rows="2"
-                                                        ></textarea>
-
-                                                        <div className="flex gap-2">
-                                                            <button 
-                                                                onClick={() => setActiveTaskId(null)} 
-                                                                className="flex-1 py-2 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200"
-                                                            >
-                                                                Відміна
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleTaskSignup(task.task_id)} 
-                                                                className="flex-1 py-2 bg-orange-600 text-white rounded font-bold text-sm hover:bg-orange-700"
-                                                            >
-                                                                Записатися
-                                                            </button>
+                                                        {/* [ВИПРАВЛЕНО] Те саме для волонтерів: показуємо поля, якщо даних немає */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                                                            {!user && <input type="text" placeholder="Ім'я" value={guestName} onChange={e => setGuestName(e.target.value)} className="p-2 border rounded text-sm w-full"/>}
+                                                            {(!user || !user.whatsapp) && <input type="text" placeholder="WhatsApp" value={guestWhatsapp} onChange={e => setGuestWhatsapp(e.target.value)} className="p-2 border rounded text-sm w-full"/>}
                                                         </div>
+                                                        <textarea placeholder="Ваш коментар..." value={volComment} onChange={e => setVolComment(e.target.value)} className="w-full p-2 border rounded text-sm mb-3 resize-none" rows="2"></textarea>
+                                                        <div className="flex gap-2"><button onClick={() => setActiveTaskId(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200">Відміна</button><button onClick={() => handleTaskSignup(task.task_id)} className="flex-1 py-2 bg-orange-600 text-white rounded font-bold text-sm hover:bg-orange-700">Записатися</button></div>
                                                     </div>
                                                 )}
                                             </div>
@@ -582,7 +383,6 @@ const CalendarPage = ({ API_URL, user }) => {
             </div>
         </div>
       )}
-
     </div>
   );
 };
