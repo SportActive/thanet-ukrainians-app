@@ -32,15 +32,15 @@ const AboutPage = () => {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white p-4 rounded shadow-sm">
-                            <h4 className="font-bold text-gray-800">Local Council</h4>
-                            <p className="text-sm text-gray-500">За надання приміщень для зустрічей.</p>
+                            <h4 className="font-bold text-gray-800">Salvation Army</h4>
+                            <p className="text-sm text-gray-500">За всеосяжну підтримку та надання приміщень для зустрічей.</p>
                         </div>
                         <div className="bg-white p-4 rounded shadow-sm">
                             <h4 className="font-bold text-gray-800">Волонтерська група "Надія"</h4>
                             <p className="text-sm text-gray-500">За організацію дитячих свят.</p>
                         </div>
                          <div className="bg-white p-4 rounded shadow-sm">
-                            <h4 className="font-bold text-gray-800">Кирило та Команда Розробників</h4>
+                            <h4 className="font-bold text-gray-800">Кирило</h4>
                             <p className="text-sm text-gray-500">За створення цього чудового додатку!</p>
                         </div>
                     </div>
