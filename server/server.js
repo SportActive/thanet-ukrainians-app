@@ -12,25 +12,33 @@ app.use(express.json());
 // --- ПОТІМ CORS ---
 //const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// СТАНЕ (Додамо масив дозволених адрес):
+// --- НАЛАШТУВАННЯ CORS (ОНОВЛЕНЕ) ---
+
+// Список адрес, яким ми довіряємо
 const allowedOrigins = [
-    process.env.CLIENT_URL, 
-    'https://alert-prosperity-production.up.railway.app', // Твій фронтенд "жорстко"
-    'http://localhost:5173'
+    process.env.CLIENT_URL,                            // Те, що в Railway змінних
+    'https://alert-prosperity-production.up.railway.app', // Твій фронтенд (ЖОРСТКО)
+    'http://localhost:5173',                           // Для локальної розробки
+    'http://localhost:8080'
 ];
 
 app.use(cors({
-  origin: function(origin, callback) {
-    // Дозволяємо, якщо origin є в списку АБО якщо це серверний запит (без origin)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log(`❌ CORS заблоковано для: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  // ... решта коду без змін
+    origin: function (origin, callback) {
+        // Дозволяємо, якщо origin є в списку, АБО якщо це серверний запит (без origin, як Postman)
+        // Також додаємо перевірку: якщо origin undefined (локально), теж пускаємо
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log(`❌ БЛОКУВАННЯ CORS. Запит прийшов від: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
+// --- КІНЕЦЬ CORS ---
 
 // Логування для дебагу
 app.use((req, res, next) => {
