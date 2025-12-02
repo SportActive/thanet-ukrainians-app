@@ -8,13 +8,19 @@ const editorProtect = [protect, restrictTo(['Admin', 'Organizer', 'Editor'])];
 // @route   GET /api/news/public
 router.get('/public', async (req, res) => {
     try {
-        // Також дістаємо дату події, щоб знати, куди перенаправляти календар
         const query = `
             SELECT n.*, e.start_datetime as event_date 
             FROM news n
             LEFT JOIN events e ON n.event_id = e.event_id
             WHERE n.is_published = TRUE 
-            ORDER BY n.created_at DESC
+            AND (
+                n.event_id IS NULL 
+                OR e.start_datetime >= NOW() - INTERVAL '2 hours' -- Показуємо події, що ще не закінчились (з невеликим запасом)
+            )
+            ORDER BY 
+                CASE WHEN n.event_id IS NULL THEN 0 ELSE 1 END ASC, -- Спочатку записи БЕЗ подій (загальні анонси)
+                e.start_datetime ASC, -- Потім події від найближчої до найдальшої
+                n.created_at DESC -- Якщо дати немає, сортуємо за створенням
         `;
         const result = await db.query(query);
         res.status(200).json(result.rows);
@@ -26,14 +32,14 @@ router.get('/public', async (req, res) => {
 
 // @route   POST /api/news
 router.post('/', editorProtect, async (req, res) => {
-    // Додали event_id
-    const { title, content, image_url, type, event_id } = req.body;
+    // Приймаємо is_news та is_announcement
+    const { title, content, image_url, is_news, is_announcement, event_id } = req.body;
     const authorId = req.user.user_id;
 
     try {
         const result = await db.query(
-            'INSERT INTO news (title, content, image_url, type, author_id, event_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [title, content, image_url, type || 'News', authorId, event_id || null]
+            'INSERT INTO news (title, content, image_url, is_news, is_announcement, author_id, event_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [title, content, image_url, is_news || false, is_announcement || false, authorId, event_id || null]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -44,14 +50,13 @@ router.post('/', editorProtect, async (req, res) => {
 
 // @route   PUT /api/news/:id
 router.put('/:id', editorProtect, async (req, res) => {
-    // Додали event_id
-    const { title, content, image_url, type, event_id } = req.body;
+    const { title, content, image_url, is_news, is_announcement, event_id } = req.body;
     const newsId = req.params.id;
 
     try {
         const result = await db.query(
-            'UPDATE news SET title=$1, content=$2, image_url=$3, type=$4, event_id=$5 WHERE news_id=$6 RETURNING *',
-            [title, content, image_url, type, event_id || null, newsId]
+            'UPDATE news SET title=$1, content=$2, image_url=$3, is_news=$4, is_announcement=$5, event_id=$6 WHERE news_id=$7 RETURNING *',
+            [title, content, image_url, is_news || false, is_announcement || false, event_id || null, newsId]
         );
         if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
         res.json(result.rows[0]);
