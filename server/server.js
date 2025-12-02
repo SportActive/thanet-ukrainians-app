@@ -10,7 +10,27 @@ const app = express();
 app.use(express.json()); 
 
 // --- ПОТІМ CORS ---
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+//const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+
+// СТАНЕ (Додамо масив дозволених адрес):
+const allowedOrigins = [
+    process.env.CLIENT_URL, 
+    'https://alert-prosperity-production.up.railway.app', // Твій фронтенд "жорстко"
+    'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Дозволяємо, якщо origin є в списку АБО якщо це серверний запит (без origin)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`❌ CORS заблоковано для: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  // ... решта коду без змін
+
 
 // Логування для дебагу
 app.use((req, res, next) => {
