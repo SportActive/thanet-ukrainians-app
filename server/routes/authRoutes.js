@@ -97,8 +97,8 @@ router.put('/users/:id/role', protect, restrictTo(['Admin']), async (req, res) =
     const { role } = req.body;
     const { id } = req.params;
 
-    const validRoles = ['User', 'Organizer', 'Admin'];
-    if (!validRoles.includes(role)) {
+  //  const validRoles = ['User', 'Organizer', 'Admin'];
+    const validRoles = ['User', 'Organizer', 'Admin', 'Editor']; // Додали Editor    if (!validRoles.includes(role)) {
         return res.status(400).json({ message: 'Недопустима роль' });
     }
 

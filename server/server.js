@@ -46,10 +46,12 @@ app.use((req, res, next) => {
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
+const newsRoutes = require('./routes/newsRoutes'); // <--- ДОДАТИ
 
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes); 
 app.use('/api/tasks', taskRoutes);
+const newsRoutes = require('./routes/newsRoutes'); // <--- ДОДАТИ
 
 // Головна сторінка (перевірка життя сервера)
 app.get('/', (req, res) => {
