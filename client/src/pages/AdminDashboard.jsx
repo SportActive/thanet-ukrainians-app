@@ -94,11 +94,12 @@ const AdminDashboard = ({ user, API_URL }) => {
 
     // --- STATES FOR NEWS ---
     const [newsList, setNewsList] = useState([]);
-    const [editingNews, setEditingNews] = useState(null); // НОВЕ: для редагування
+    const [editingNews, setEditingNews] = useState(null);
     const [newsTitle, setNewsTitle] = useState('');
     const [newsContent, setNewsContent] = useState('');
     const [newsImage, setNewsImage] = useState('');
-    const [newsType, setNewsType] = useState('News'); 
+    const [newsType, setNewsType] = useState('News');
+    const [newsEventId, setNewsEventId] = useState(''); // <--- НОВЕ ПОЛЕ ДЛЯ ЗВ'ЯЗКУ
 
     // Form fields for Events
     const [title, setTitle] = useState('');
@@ -157,7 +158,7 @@ const AdminDashboard = ({ user, API_URL }) => {
         if (view === 'news') fetchNews();
     }, [selectedEventId, view]);
 
-    // --- HANDLERS (Events, Tasks, Users) ---
+    // --- HANDLERS ---
     const handleSaveEvent = async (e) => {
         e.preventDefault(); setMessage('');
         const data = { title, description, location_name: locationName, start_datetime: startDate, end_datetime: endDate || null, is_published: true, category };
@@ -182,15 +183,15 @@ const AdminDashboard = ({ user, API_URL }) => {
         try { await axios.put(`${API_URL}/auth/users/${uid}/role`, {role}, { headers: { Authorization: `Bearer ${token}` } }); setMessage(`Роль змінено на ${role}`); fetchUsers(); } catch(e){ alert('Error'); }
     };
 
-    // --- HANDLERS FOR NEWS (ОНОВЛЕНО) ---
+    // --- NEWS HANDLERS ---
     
-    // Заповнити форму даними новини
     const startEditNews = (n) => {
         setEditingNews(n);
         setNewsTitle(n.title);
         setNewsContent(n.content);
         setNewsImage(n.image_url || '');
         setNewsType(n.type);
+        setNewsEventId(n.event_id || ''); // <-- Заповнюємо прив'язку до події
         window.scrollTo({ top: 0, behavior: 'smooth' });
         setMessage('✏️ Режим редагування');
     };
@@ -200,27 +201,32 @@ const AdminDashboard = ({ user, API_URL }) => {
         setNewsTitle('');
         setNewsContent('');
         setNewsImage('');
+        setNewsEventId('');
         setMessage('');
     };
 
     const handleSaveNews = async (e) => {
         e.preventDefault();
-        const newsData = { title: newsTitle, content: newsContent, image_url: newsImage, type: newsType };
+        // Додаємо event_id у дані
+        const newsData = { 
+            title: newsTitle, 
+            content: newsContent, 
+            image_url: newsImage, 
+            type: newsType,
+            event_id: newsEventId || null 
+        };
         
         try {
             if (editingNews) {
-                // UPDATE (PUT)
                 await axios.put(`${API_URL}/news/${editingNews.news_id}`, newsData, { headers: { Authorization: `Bearer ${token}` } });
                 setMessage('✅ Зміни збережено!');
                 setEditingNews(null);
             } else {
-                // CREATE (POST)
                 await axios.post(`${API_URL}/news`, newsData, { headers: { Authorization: `Bearer ${token}` } });
                 setMessage('✅ Опубліковано!');
             }
-            
             // Скидання
-            setNewsTitle(''); setNewsContent(''); setNewsImage('');
+            setNewsTitle(''); setNewsContent(''); setNewsImage(''); setNewsEventId('');
             fetchNews();
         } catch (error) {
             setMessage('❌ Помилка збереження.');
@@ -326,7 +332,6 @@ const AdminDashboard = ({ user, API_URL }) => {
         </div>
     );
 
-    // --- ОНОВЛЕНА В'ЮШКА ДЛЯ НОВИН ---
     const renderNewsView = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
             {/* Форма створення/редагування */}
@@ -361,6 +366,24 @@ const AdminDashboard = ({ user, API_URL }) => {
 
                     <input type="text" placeholder="Заголовок" value={newsTitle} onChange={e => setNewsTitle(e.target.value)} required className="w-full p-3 border rounded-lg" />
                     
+                    {/* НОВЕ: Випадаючий список подій */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Прив'язати до події (опціонально)</label>
+                        <select 
+                            value={newsEventId} 
+                            onChange={e => setNewsEventId(e.target.value)} 
+                            className="w-full p-3 border rounded-lg bg-white"
+                        >
+                            <option value="">-- Без прив'язки --</option>
+                            {events.map(ev => (
+                                <option key={ev.event_id} value={ev.event_id}>
+                                    {ev.title} ({new Date(ev.start_datetime).toLocaleDateString()})
+                                </option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">В новині з'явиться кнопка "Перейти до події".</p>
+                    </div>
+
                     <div>
                         <input type="text" placeholder="Посилання на зображення/рекламну плашку (URL)" value={newsImage} onChange={e => setNewsImage(e.target.value)} className="w-full p-3 border rounded-lg" />
                         <p className="text-xs text-gray-500 mt-1">Скопіюйте сюди посилання на картинку (наприклад, з Imgur).</p>

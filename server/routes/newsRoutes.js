@@ -3,17 +3,20 @@ const db = require('../config/db');
 const { protect, restrictTo } = require('../middleware/auth');
 
 const router = express.Router();
-
-// Дозволяємо керувати новинами Адмінам, Організаторам та Редакторам
 const editorProtect = [protect, restrictTo(['Admin', 'Organizer', 'Editor'])];
 
 // @route   GET /api/news/public
-// @desc    Отримати всі опубліковані новини (для всіх)
 router.get('/public', async (req, res) => {
     try {
-        const result = await db.query(
-            'SELECT * FROM news WHERE is_published = TRUE ORDER BY created_at DESC'
-        );
+        // Також дістаємо дату події, щоб знати, куди перенаправляти календар
+        const query = `
+            SELECT n.*, e.start_datetime as event_date 
+            FROM news n
+            LEFT JOIN events e ON n.event_id = e.event_id
+            WHERE n.is_published = TRUE 
+            ORDER BY n.created_at DESC
+        `;
+        const result = await db.query(query);
         res.status(200).json(result.rows);
     } catch (err) {
         console.error(err);
@@ -22,15 +25,15 @@ router.get('/public', async (req, res) => {
 });
 
 // @route   POST /api/news
-// @desc    Створити новину/анонс
 router.post('/', editorProtect, async (req, res) => {
-    const { title, content, image_url, type } = req.body;
+    // Додали event_id
+    const { title, content, image_url, type, event_id } = req.body;
     const authorId = req.user.user_id;
 
     try {
         const result = await db.query(
-            'INSERT INTO news (title, content, image_url, type, author_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [title, content, image_url, type || 'News', authorId]
+            'INSERT INTO news (title, content, image_url, type, author_id, event_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [title, content, image_url, type || 'News', authorId, event_id || null]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -40,21 +43,17 @@ router.post('/', editorProtect, async (req, res) => {
 });
 
 // @route   PUT /api/news/:id
-// @desc    Оновити новину (НОВЕ)
 router.put('/:id', editorProtect, async (req, res) => {
-    const { title, content, image_url, type } = req.body;
+    // Додали event_id
+    const { title, content, image_url, type, event_id } = req.body;
     const newsId = req.params.id;
 
     try {
         const result = await db.query(
-            'UPDATE news SET title=$1, content=$2, image_url=$3, type=$4 WHERE news_id=$5 RETURNING *',
-            [title, content, image_url, type, newsId]
+            'UPDATE news SET title=$1, content=$2, image_url=$3, type=$4, event_id=$5 WHERE news_id=$6 RETURNING *',
+            [title, content, image_url, type, event_id || null, newsId]
         );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Новину не знайдено' });
-        }
-
+        if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
         res.json(result.rows[0]);
     } catch (err) {
         console.error(err);
@@ -63,11 +62,10 @@ router.put('/:id', editorProtect, async (req, res) => {
 });
 
 // @route   DELETE /api/news/:id
-// @desc    Видалити новину
 router.delete('/:id', editorProtect, async (req, res) => {
     try {
         await db.query('DELETE FROM news WHERE news_id = $1', [req.params.id]);
-        res.json({ message: 'Новину видалено' });
+        res.json({ message: 'Deleted' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });

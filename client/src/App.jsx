@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import CalendarPage from './pages/CalendarPage';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
-import NewsPage from './pages/NewsPage';    // <-- НОВА СТОРІНКА
-import AboutPage from './pages/AboutPage';  // <-- НОВА СТОРІНКА
+import NewsPage from './pages/NewsPage';
+import AboutPage from './pages/AboutPage';
 import { jwtDecode } from 'jwt-decode';
 
 // Використовуємо змінну оточення або локальний сервер за замовчуванням
@@ -11,8 +11,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const App = () => {
     const [user, setUser] = useState(null); 
-    const [currentPage, setCurrentPage] = useState('news'); // За замовчуванням показуємо Новини
+    const [currentPage, setCurrentPage] = useState('news'); // За замовчуванням новини
     const [isMenuOpen, setIsMenuOpen] = useState(false); 
+    
+    // --- НОВИЙ СТЕЙТ ДЛЯ ПЕРЕХОДУ З НОВИН НА КАЛЕНДАР ---
+    const [calendarTargetEvent, setCalendarTargetEvent] = useState(null); // { id: 123, date: '2025-12-03' }
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -26,7 +29,6 @@ const App = () => {
                         first_name: decoded.first_name || 'Користувач' 
                     });
                     
-                    // Якщо користувач був на адмінці і оновив сторінку - лишаємо там
                     if (['Admin', 'Organizer', 'Editor'].includes(decoded.role) && currentPage === 'admin') {
                         setCurrentPage('admin');
                     }
@@ -57,21 +59,42 @@ const App = () => {
         setIsMenuOpen(false);
     };
 
-    // Перевірка прав доступу до адмінки
+    // --- ФУНКЦІЯ ПЕРЕХОДУ НА ПОДІЮ ---
+    const handleGoToCalendar = (eventId, eventDate) => {
+        setCalendarTargetEvent({ id: eventId, date: eventDate });
+        setCurrentPage('calendar');
+        setIsMenuOpen(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const canAccessAdmin = user && ['Admin', 'Organizer', 'Editor'].includes(user.role);
 
-    // Логіка відображення сторінок
     const renderContent = () => {
         switch (currentPage) {
             case 'login': return <LoginPage onLogin={handleLogin} />;
-            case 'admin': return canAccessAdmin ? <AdminDashboard user={user} API_URL={API_URL} /> : <CalendarPage API_URL={API_URL} user={user} />;
-            case 'news': return <NewsPage API_URL={API_URL} />;
+            
+            case 'admin': 
+                return canAccessAdmin ? <AdminDashboard user={user} API_URL={API_URL} /> : <CalendarPage API_URL={API_URL} user={user} />;
+            
+            case 'news': 
+                // Передаємо функцію переходу
+                return <NewsPage API_URL={API_URL} onGoToCalendar={handleGoToCalendar} />;
+            
             case 'about': return <AboutPage />;
-            case 'calendar': default: return <CalendarPage API_URL={API_URL} user={user} />;
+            
+            case 'calendar': default: 
+                // Передаємо цільову подію і функцію очистки
+                return (
+                    <CalendarPage 
+                        API_URL={API_URL} 
+                        user={user} 
+                        targetEvent={calendarTargetEvent} 
+                        onTargetHandled={() => setCalendarTargetEvent(null)} 
+                    />
+                );
         }
     };
 
-    // Компонент кнопки навігації
     const NavButton = ({ target, label, icon }) => (
         <button 
             onClick={() => { setCurrentPage(target); setIsMenuOpen(false); }} 
