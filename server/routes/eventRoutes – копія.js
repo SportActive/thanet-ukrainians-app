@@ -66,14 +66,10 @@ router.get('/stats/global', organizerProtect, async (req, res) => {
 });
 
 // @route   GET /api/events/:id/details
-// @desc    Отримати списки учасників, волонтерів ТА завдань для статистики
 router.get('/:id/details', organizerProtect, async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. Учасники
         const attendees = await db.query(`SELECT * FROM event_registrations WHERE event_id = $1 ORDER BY created_at DESC`, [id]);
-        
-        // 2. Волонтери (з деталями)
         const volunteers = await db.query(`
             SELECT vs.*, t.title as task_title 
             FROM volunteer_signups vs
@@ -81,27 +77,7 @@ router.get('/:id/details', organizerProtect, async (req, res) => {
             WHERE t.event_id = $1
         `, [id]);
 
-        // 3. Завдання (щоб знати структуру потреб: скільки треба, скільки є)
-        // Ми використовуємо підзапит для підрахунку вже записаних
-        const tasks = await db.query(`
-            SELECT 
-                t.*,
-                COALESCE(s.signed_up_count, 0) AS signed_up_volunteers
-            FROM tasks t
-            LEFT JOIN (
-                SELECT task_id, COUNT(*) AS signed_up_count
-                FROM volunteer_signups
-                GROUP BY task_id
-            ) s ON s.task_id = t.task_id
-            WHERE t.event_id = $1
-            ORDER BY t.title ASC
-        `, [id]);
-
-        res.json({
-            attendees: attendees.rows,
-            volunteers: volunteers.rows,
-            tasks: tasks.rows // <--- Додали це
-        });
+        res.json({ attendees: attendees.rows, volunteers: volunteers.rows });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
