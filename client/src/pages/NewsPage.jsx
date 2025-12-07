@@ -3,7 +3,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 
-const NewsPage = ({ API_URL, onGoToCalendar }) => {
+const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { // <--- Приймаємо targetNewsId
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All'); 
@@ -22,32 +22,35 @@ const NewsPage = ({ API_URL, onGoToCalendar }) => {
         fetchNews();
     }, [API_URL]);
 
-    // --- ФУНКЦІЯ ФОРМАТУВАННЯ ТЕКСТУ (Посилання + Абзаци) ---
+    // --- АВТО-СКРОЛ ДО НОВИНИ ---
+    useEffect(() => {
+        if (targetNewsId && !loading && news.length > 0) {
+            const element = document.getElementById(`news-${targetNewsId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Додамо тимчасовий ефект підсвітки
+                element.classList.add('ring-4', 'ring-indigo-300');
+                setTimeout(() => element.classList.remove('ring-4', 'ring-indigo-300'), 2000);
+            }
+        }
+    }, [targetNewsId, loading, news]);
+
+    // --- ФУНКЦІЯ КОПІЮВАННЯ ПОСИЛАННЯ ---
+    const copyLink = (id) => {
+        const link = `${window.location.origin}/?news_id=${id}`;
+        navigator.clipboard.writeText(link);
+        alert('✅ Посилання скопійовано! Можете відправити його друзям.');
+    };
+
     const formatText = (text) => {
         if (!text) return null;
-
-        // Розбиваємо текст на рядки (щоб зберегти абзаци)
         return text.split('\n').map((line, index) => (
             <p key={index} className="mb-2 min-h-[1rem] break-words whitespace-pre-wrap">
                 {line.split(' ').map((word, wordIndex) => {
-                    // Перевіряємо, чи є слово посиланням (починається з http/https)
                     const isUrl = word.match(/^(https?:\/\/[^\s]+)/);
-                    
                     if (isUrl) {
-                        return (
-                            <a 
-                                key={wordIndex} 
-                                href={word} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-blue-600 hover:underline font-medium break-all"
-                                onClick={(e) => e.stopPropagation()} // Щоб клік не тригерив інші події
-                            >
-                                {word}{' '}
-                            </a>
-                        );
+                        return <a key={wordIndex} href={word} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium break-all" onClick={(e) => e.stopPropagation()}>{word} </a>;
                     }
-                    // Якщо не посилання - просто повертаємо текст
                     return word + ' ';
                 })}
             </p>
@@ -79,9 +82,11 @@ const NewsPage = ({ API_URL, onGoToCalendar }) => {
                     const dateLabel = item.event_date ? '📅 Дата події:' : '📅 Опубліковано:';
 
                     return (
-                        <div key={item.news_id} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col md:flex-row hover:shadow-xl transition duration-300">
-                            
-                            {/* Картинка */}
+                        <div 
+                            key={item.news_id} 
+                            id={`news-${item.news_id}`} // <--- ID ДЛЯ СКРОЛУ
+                            className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col md:flex-row hover:shadow-xl transition duration-300"
+                        >
                             {item.image_url && (
                                 <div className="md:w-1/3 h-48 md:h-auto relative shrink-0 bg-gray-100">
                                     <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
@@ -92,9 +97,18 @@ const NewsPage = ({ API_URL, onGoToCalendar }) => {
                                 </div>
                             )}
                             
-                            <div className="p-6 flex flex-col justify-between flex-grow w-full md:w-2/3">
+                            <div className="p-6 flex flex-col justify-between flex-grow w-full md:w-2/3 relative">
+                                {/* КНОПКА "ПОДІЛИТИСЯ" (СПРАВА ЗВЕРХУ) */}
+                                <button 
+                                    onClick={() => copyLink(item.news_id)}
+                                    className="absolute top-4 right-4 text-gray-400 hover:text-indigo-600 transition p-1"
+                                    title="Копіювати посилання на цю новину"
+                                >
+                                    🔗
+                                </button>
+
                                 <div>
-                                    <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
+                                    <div className="flex justify-between items-start mb-2 flex-wrap gap-2 pr-8">
                                         <h3 className="text-2xl font-bold text-gray-800 leading-tight break-words w-full">{item.title}</h3>
                                         {!item.image_url && (
                                             <div className="flex gap-1">
@@ -107,7 +121,6 @@ const NewsPage = ({ API_URL, onGoToCalendar }) => {
                                         {dateLabel} {format(displayDate, 'd MMMM yyyy, HH:mm', { locale: uk })}
                                     </p>
                                     
-                                    {/* ВИКОРИСТАННЯ НОВОЇ ФУНКЦІЇ ФОРМАТУВАННЯ */}
                                     <div className="text-gray-700 leading-relaxed text-base">
                                         {formatText(item.content)}
                                     </div>

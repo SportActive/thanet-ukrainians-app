@@ -13,9 +13,14 @@ const App = () => {
     const [currentPage, setCurrentPage] = useState('news'); 
     const [isMenuOpen, setIsMenuOpen] = useState(false); 
     
+    // Стейт для переходу на календар (з кнопки "Записатися")
     const [calendarTargetEvent, setCalendarTargetEvent] = useState(null);
+    
+    // Стейт для переходу на конкретну новину (з посилання)
+    const [targetNewsId, setTargetNewsId] = useState(null);
 
     useEffect(() => {
+        // 1. Перевірка токена
         const token = localStorage.getItem('token');
         if (token) {
             try {
@@ -25,37 +30,38 @@ const App = () => {
                         user_id: decoded.user_id, 
                         role: decoded.role, 
                         first_name: decoded.first_name || 'Користувач',
-                        whatsapp: decoded.whatsapp // <--- ОСЬ ЦЕЙ РЯДОК МИ ДОДАЛИ!
+                        whatsapp: decoded.whatsapp 
                     });
-                    
-                    if (['Admin', 'Organizer', 'Editor'].includes(decoded.role) && currentPage === 'admin') {
-                        setCurrentPage('admin');
-                    }
                 } else {
                     localStorage.removeItem('token');
                     setUser(null);
                 }
             } catch (error) {
-                console.error("Token error:", error);
                 localStorage.removeItem('token');
             }
         }
+
+        // 2. [НОВЕ] Перевірка URL параметрів (чи є посилання на новину?)
+        const params = new URLSearchParams(window.location.search);
+        const newsIdFromUrl = params.get('news_id');
+        
+        if (newsIdFromUrl) {
+            setCurrentPage('news');
+            setTargetNewsId(newsIdFromUrl);
+            // Очищаємо URL, щоб він виглядав гарно (опціонально)
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (user && ['Admin', 'Organizer', 'Editor'].includes(user.role)) {
+             // Якщо адмін і немає спец. посилання -> перевіряємо, чи не був він в адмінці
+             // (логіка за замовчуванням)
+        }
+
     }, []);
 
     const handleLogin = (userInfo) => {
-        // Коли логінимось, userInfo приходить з відповіді сервера, там вже має бути токен з whatsapp
-        // Але краще декодувати токен, щоб бути впевненим
         if (userInfo.token) {
             const decoded = jwtDecode(userInfo.token);
-            setUser({
-                user_id: decoded.user_id,
-                role: decoded.role,
-                first_name: decoded.first_name,
-                whatsapp: decoded.whatsapp
-            });
-        } else {
-            setUser(userInfo);
-        }
+            setUser({ ...decoded, token: userInfo.token });
+        } else { setUser(userInfo); }
 
         if (['Admin', 'Organizer', 'Editor'].includes(userInfo.role)) {
             setCurrentPage('admin');
@@ -84,7 +90,10 @@ const App = () => {
         switch (currentPage) {
             case 'login': return <LoginPage onLogin={handleLogin} />;
             case 'admin': return canAccessAdmin ? <AdminDashboard user={user} API_URL={API_URL} /> : <CalendarPage API_URL={API_URL} user={user} />;
-            case 'news': return <NewsPage API_URL={API_URL} onGoToCalendar={handleGoToCalendar} />;
+            
+            case 'news': 
+                return <NewsPage API_URL={API_URL} onGoToCalendar={handleGoToCalendar} targetNewsId={targetNewsId} />;
+            
             case 'about': return <AboutPage />;
             case 'calendar': default: return <CalendarPage API_URL={API_URL} user={user} targetEvent={calendarTargetEvent} onTargetHandled={() => setCalendarTargetEvent(null)} />;
         }
