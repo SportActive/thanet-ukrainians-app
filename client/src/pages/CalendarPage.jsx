@@ -54,23 +54,14 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
           if (eventToOpen) {
-              // 1. Перемикаємо календар на дату події
               setCurrentDate(new Date(targetEvent.date));
-              
-              // 2. Відкриваємо модалку
               setSelectedEvent(eventToOpen);
-              
-              // ТУТ ЗМІНА: Відкриваємо вкладку "Інфо" (view), а не реєстрацію
               setMode('view'); 
-              
               fetchTasksForEvent(eventToOpen.event_id);
-              
-              // 3. Сигналізуємо App.jsx
               if (onTargetHandled) onTargetHandled();
           }
       }
   }, [targetEvent, events, onTargetHandled]); 
-  // ---------------------------------------------
 
   const fetchTasksForEvent = async (eventId) => {
       setLoadingTasks(true);
@@ -170,6 +161,34 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   const getEventsForDay = (day) => {
     if (!events || !Array.isArray(events)) return [];
     return events.filter(event => isSameDay(parseISO(event.start_datetime), day));
+  };
+
+  // --- НОВА ФУНКЦІЯ ФОРМАТУВАННЯ ТЕКСТУ ---
+  const formatText = (text) => {
+    if (!text) return <p className="text-gray-500 italic">Опис відсутній.</p>;
+    
+    return text.split('\n').map((line, index) => (
+        <p key={index} className="mb-2 min-h-[1rem] break-words whitespace-pre-wrap">
+            {line.split(' ').map((word, wordIndex) => {
+                const isUrl = word.match(/^(https?:\/\/[^\s]+)/);
+                if (isUrl) {
+                    return (
+                        <a 
+                            key={wordIndex} 
+                            href={word} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-blue-600 hover:underline font-bold break-all"
+                            onClick={(e) => e.stopPropagation()} 
+                        >
+                            {word}{' '}
+                        </a>
+                    );
+                }
+                return word + ' ';
+            })}
+        </p>
+    ));
   };
 
   // Render Views
@@ -308,7 +327,11 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                                 <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium">📍 {selectedEvent.location_name || 'Локацію не вказано'}</span>
                                 <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-sm font-medium">🏷️ {selectedEvent.category || 'Подія'}</span>
                             </div>
-                            <p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{selectedEvent.description || 'Опис відсутній.'}</p>
+                            
+                            {/* ТУТ БУЛА ЗМІНА: ВИКЛИК formatText ЗАМІСТЬ <p> */}
+                            <div className="text-gray-700 text-lg leading-relaxed">
+                                {formatText(selectedEvent.description)}
+                            </div>
                             
                             <div className="grid grid-cols-2 gap-4 mt-6">
                                 <button onClick={() => setMode('register')} className="py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition">🎫 Зареєструватись на подію</button>

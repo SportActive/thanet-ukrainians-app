@@ -113,12 +113,41 @@ const AdminDashboard = ({ user, API_URL }) => {
     const categories = [{ value: 'Education', label: 'Освітня' }, { value: 'Charity', label: 'Благодійна' }, { value: 'Excursion', label: 'Екскурсія' }, { value: 'Social', label: 'Соціальна' }];
 
     // --- FETCHES ---
-    const fetchEvents = async () => { setLoadingEvents(true); try { const res = await axios.get(`${API_URL}/events`, { headers: { Authorization: `Bearer ${token}` } }); setEvents(res.data); } catch (e) {} finally { setLoadingEvents(false); } };
+    
+    // 1. СОРТУВАННЯ ПОДІЙ: Від найновіших дат (майбутніх) до минулих
+    const fetchEvents = async () => { 
+        setLoadingEvents(true); 
+        try { 
+            const res = await axios.get(`${API_URL}/events`, { headers: { Authorization: `Bearer ${token}` } }); 
+            const sortedEvents = res.data.sort((a, b) => new Date(b.start_datetime) - new Date(a.start_datetime));
+            setEvents(sortedEvents); 
+        } catch (e) {
+            console.error(e);
+        } finally { 
+            setLoadingEvents(false); 
+        } 
+    };
+
     const fetchTasks = async (id) => { if(!id) return; setLoadingTasks(true); try { const res = await axios.get(`${API_URL}/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` } }); setTasks(res.data); } catch (e) {} finally { setLoadingTasks(false); } };
     const fetchUsers = async () => { if(user.role !== 'Admin') return; setLoadingUsers(true); try { const res = await axios.get(`${API_URL}/auth/users`, { headers: { Authorization: `Bearer ${token}` } }); setUsers(res.data); } catch (e) {} finally { setLoadingUsers(false); } };
     const fetchStats = async () => { try { const res = await axios.get(`${API_URL}/events/stats/global`, { headers: { Authorization: `Bearer ${token}` } }); setStats(res.data); } catch(e){} };
     const fetchEventDetails = async (id) => { if(!id) return; setLoadingDetails(true); try { const res = await axios.get(`${API_URL}/events/${id}/details`, { headers: { Authorization: `Bearer ${token}` } }); setEventDetails(res.data); } catch(e){} finally { setLoadingDetails(false); } };
-    const fetchNews = async () => { try { const res = await axios.get(`${API_URL}/news/public`); setNewsList(res.data); } catch (error) {} };
+    
+    // 2. СОРТУВАННЯ НОВИН: Від найсвіжіших (за датою створення або ID) до старих
+    const fetchNews = async () => { 
+        try { 
+            const res = await axios.get(`${API_URL}/news/public`); 
+            const sortedNews = res.data.sort((a, b) => {
+                // Спробуємо сортувати по created_at, якщо немає - по news_id (як fallback)
+                const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+                const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+                return dateB - dateA || b.news_id - a.news_id;
+            });
+            setNewsList(sortedNews); 
+        } catch (error) {
+            console.error(error);
+        } 
+    };
 
     useEffect(() => { fetchEvents(); if (user.role === 'Admin') fetchUsers(); fetchNews(); }, []);
     useEffect(() => { if (view === 'tasks' && selectedEventId) fetchTasks(selectedEventId); if (view === 'stats') fetchStats(); if (view === 'news') fetchNews(); }, [selectedEventId, view]);
