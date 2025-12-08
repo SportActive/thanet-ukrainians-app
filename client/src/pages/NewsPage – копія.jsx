@@ -6,8 +6,7 @@ import { uk } from 'date-fns/locale';
 const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { // <--- Приймаємо targetNewsId
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
-    // ЗМІНА 1: За замовчуванням відкриваємо 'News', а не 'All'
-    const [filter, setFilter] = useState('News'); 
+    const [filter, setFilter] = useState('All'); 
 
     useEffect(() => {
         const fetchNews = async () => {
@@ -58,30 +57,12 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { // <--- При
         ));
     };
 
-    // ЗМІНА 2: Оновлена логіка фільтрації та сортування
-    const getProcessedNews = () => {
-        let processed = [...news]; // Створюємо копію масиву
-
-        if (filter === 'News') {
-            // Фільтр: тільки новини
-            processed = processed.filter(item => item.is_news);
-            // Сортування: по даті створення (свіжі зверху) -> created_at DESC
-            processed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        } else if (filter === 'Announcement') {
-            // Фільтр: тільки анонси
-            processed = processed.filter(item => item.is_announcement);
-            // Сортування: по даті події (що раніше - зверху) -> event_date ASC
-            processed.sort((a, b) => {
-                const dateA = a.event_date ? new Date(a.event_date) : new Date(0);
-                const dateB = b.event_date ? new Date(b.event_date) : new Date(0);
-                return dateA - dateB;
-            });
-        }
-
-        return processed;
-    };
-
-    const filteredNews = getProcessedNews();
+    const filteredNews = news.filter(item => {
+        if (filter === 'All') return true;
+        if (filter === 'News') return item.is_news;
+        if (filter === 'Announcement') return item.is_announcement;
+        return true;
+    });
 
     if (loading) return <div className="text-center py-10 text-gray-500">Завантаження новин...</div>;
 
@@ -89,27 +70,16 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { // <--- При
         <div className="max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">📰 Новини та Анонси</h2>
             
-            {/* ЗМІНА 3: Прибрана кнопка "Всі" */}
             <div className="flex justify-center gap-4 mb-8 flex-wrap">
-                <button 
-                    onClick={() => setFilter('News')} 
-                    className={`px-6 py-2 rounded-full font-bold transition ${filter === 'News' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                >
-                    📰 Новини
-                </button>
-                <button 
-                    onClick={() => setFilter('Announcement')} 
-                    className={`px-6 py-2 rounded-full font-bold transition ${filter === 'Announcement' ? 'bg-pink-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                >
-                    📣 Анонси
-                </button>
+                <button onClick={() => setFilter('All')} className={`px-4 py-2 rounded-full font-bold transition ${filter === 'All' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}>Всі</button>
+                <button onClick={() => setFilter('Announcement')} className={`px-4 py-2 rounded-full font-bold transition ${filter === 'Announcement' ? 'bg-pink-600 text-white' : 'bg-gray-200 text-gray-700'}`}>📣 Анонси</button>
+                <button onClick={() => setFilter('News')} className={`px-4 py-2 rounded-full font-bold transition ${filter === 'News' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>📰 Новини</button>
             </div>
 
             <div className="space-y-8">
-                {filteredNews.length === 0 ? <p className="text-center text-gray-500 italic">У цій категорії поки що немає записів.</p> : filteredNews.map(item => {
+                {filteredNews.length === 0 ? <p className="text-center text-gray-500 italic">Поки що новин немає.</p> : filteredNews.map(item => {
                     const displayDate = item.event_date ? new Date(item.event_date) : new Date(item.created_at);
-                    // Логіка відображення лейблу дати в залежності від типу (для анонсів важлива дата події)
-                    const dateLabel = (filter === 'Announcement' && item.event_date) ? '📅 Дата події:' : '📅 Опубліковано:';
+                    const dateLabel = item.event_date ? '📅 Дата події:' : '📅 Опубліковано:';
 
                     return (
                         <div 
