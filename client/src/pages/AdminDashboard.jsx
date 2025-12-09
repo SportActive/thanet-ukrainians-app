@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
+import { addDays, addWeeks, addMonths, parseISO, formatISO } from 'date-fns'; // Додали функції для роботи з датами
 
 // --- КОМПОНЕНТ: ФОРМА ЗАВДАННЯ ---
 const TaskForm = ({ eventId, eventTitle, API_URL, token, onSuccess, editingTask, onCancelEdit }) => {
@@ -82,6 +82,15 @@ const AdminDashboard = ({ user, API_URL }) => {
     const [selectedEventId, setSelectedEventId] = useState(null);
     const [editingEvent, setEditingEvent] = useState(null);
     
+    // --- REPEAT MODAL STATE ---
+    const [repeatModalOpen, setRepeatModalOpen] = useState(false);
+    const [eventToRepeat, setEventToRepeat] = useState(null);
+    const [repeatCount, setRepeatCount] = useState(1); // Скільки разів повторити
+    const [repeatIntervalType, setRepeatIntervalType] = useState('week'); // week, day
+    const [repeatIntervalValue, setRepeatIntervalValue] = useState(1); // кожні X тижнів
+    const [isRepeating, setIsRepeating] = useState(false);
+    // --------------------------
+
     const [tasks, setTasks] = useState([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
@@ -113,8 +122,6 @@ const AdminDashboard = ({ user, API_URL }) => {
     const categories = [{ value: 'Education', label: 'Освітня' }, { value: 'Charity', label: 'Благодійна' }, { value: 'Excursion', label: 'Екскурсія' }, { value: 'Social', label: 'Соціальна' }];
 
     // --- FETCHES ---
-    
-    // 1. СОРТУВАННЯ ПОДІЙ: Від найновіших дат (майбутніх) до минулих
     const fetchEvents = async () => { 
         setLoadingEvents(true); 
         try { 
@@ -133,20 +140,16 @@ const AdminDashboard = ({ user, API_URL }) => {
     const fetchStats = async () => { try { const res = await axios.get(`${API_URL}/events/stats/global`, { headers: { Authorization: `Bearer ${token}` } }); setStats(res.data); } catch(e){} };
     const fetchEventDetails = async (id) => { if(!id) return; setLoadingDetails(true); try { const res = await axios.get(`${API_URL}/events/${id}/details`, { headers: { Authorization: `Bearer ${token}` } }); setEventDetails(res.data); } catch(e){} finally { setLoadingDetails(false); } };
     
-    // 2. СОРТУВАННЯ НОВИН: Від найсвіжіших (за датою створення або ID) до старих
     const fetchNews = async () => { 
         try { 
             const res = await axios.get(`${API_URL}/news/public`); 
             const sortedNews = res.data.sort((a, b) => {
-                // Спробуємо сортувати по created_at, якщо немає - по news_id (як fallback)
                 const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
                 const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
                 return dateB - dateA || b.news_id - a.news_id;
             });
             setNewsList(sortedNews); 
-        } catch (error) {
-            console.error(error);
-        } 
+        } catch (error) { console.error(error); } 
     };
 
     useEffect(() => { fetchEvents(); if (user.role === 'Admin') fetchUsers(); fetchNews(); }, []);
@@ -159,6 +162,88 @@ const AdminDashboard = ({ user, API_URL }) => {
     const handleDeleteTask = async (id) => { try { await axios.delete(`${API_URL}/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` } }); fetchTasks(selectedEventId); } catch(e){alert('Помилка');} };
     const handleRoleChange = async (uid, role) => { try { await axios.put(`${API_URL}/auth/users/${uid}/role`, {role}, { headers: { Authorization: `Bearer ${token}` } }); setMessage(`Роль змінено на ${role}`); fetchUsers(); } catch(e){ alert('Error'); } };
 
+    // --- ЛОГІКА ПОВТОРЕННЯ ПОДІЙ ---
+    const openRepeatModal = (ev) => {
+        setEventToRepeat(ev);
+        setRepeatModalOpen(true);
+        setMessage('');
+    };
+
+    const handleRepeatEvent = async () => {
+        if (!eventToRepeat) return;
+        setIsRepeating(true);
+        setMessage('🔄 Створення копій, зачекайте...');
+
+        try {
+            // 1. Отримуємо список завдань для оригінальної події
+            let originalTasks = [];
+            try {
+                const tasksRes = await axios.get(`${API_URL}/tasks/${eventToRepeat.event_id}`, { headers: { Authorization: `Bearer ${token}` } });
+                originalTasks = tasksRes.data;
+            } catch (err) {
+                console.warn('Не вдалося отримати завдання, копіюємо лише подію');
+            }
+
+            const baseDate = parseISO(eventToRepeat.start_datetime);
+            const hasEndDate = !!eventToRepeat.end_datetime;
+            const duration = hasEndDate ? (parseISO(eventToRepeat.end_datetime) - baseDate) : 0;
+
+            // 2. Цикл створення копій
+            for (let i = 1; i <= repeatCount; i++) {
+                let newStartDate;
+                
+                // Розрахунок нової дати
+                if (repeatIntervalType === 'week') {
+                    newStartDate = addWeeks(baseDate, i * repeatIntervalValue);
+                } else if (repeatIntervalType === 'day') {
+                    newStartDate = addDays(baseDate, i * repeatIntervalValue);
+                } else if (repeatIntervalType === 'month') {
+                    newStartDate = addMonths(baseDate, i * repeatIntervalValue);
+                }
+
+                const newEndDate = hasEndDate ? new Date(newStartDate.getTime() + duration) : null;
+
+                // Формування даних події
+                const eventData = {
+                    title: eventToRepeat.title,
+                    description: eventToRepeat.description,
+                    location_name: eventToRepeat.location_name,
+                    start_datetime: formatISO(newStartDate), // перетворення в ISO рядок
+                    end_datetime: newEndDate ? formatISO(newEndDate) : null,
+                    is_published: true,
+                    category: eventToRepeat.category
+                };
+
+                // Створення події
+                const createRes = await axios.post(`${API_URL}/events`, eventData, { headers: { Authorization: `Bearer ${token}` } });
+                const newEventId = createRes.data.eventId || createRes.data.insertId; // Залежить від того, що повертає бекенд
+
+                // Створення завдань для нової події
+                if (originalTasks.length > 0 && newEventId) {
+                    for (const task of originalTasks) {
+                        const taskData = {
+                            event_id: newEventId,
+                            title: task.title,
+                            description: task.description,
+                            required_volunteers: task.required_volunteers,
+                            deadline_time: null // Дедлайн складніше перерахувати, краще залишити пустим або додати логіку
+                        };
+                        await axios.post(`${API_URL}/tasks`, taskData, { headers: { Authorization: `Bearer ${token}` } });
+                    }
+                }
+            }
+
+            setMessage(`✅ Успішно створено ${repeatCount} копій!`);
+            setRepeatModalOpen(false);
+            fetchEvents(); // Оновити список
+        } catch (error) {
+            console.error(error);
+            setMessage('❌ Помилка при копіюванні. Можливо, частина подій створилася.');
+        } finally {
+            setIsRepeating(false);
+        }
+    };
+
     // --- NEWS HANDLERS ---
     const startEditNews = (n) => { setEditingNews(n); setNewsTitle(n.title); setNewsContent(n.content); setNewsImage(n.image_url || ''); setIsNews(n.is_news); setIsAnnouncement(n.is_announcement); setNewsEventId(n.event_id || ''); window.scrollTo({ top: 0, behavior: 'smooth' }); setMessage('✏️ Режим редагування'); };
     const cancelEditNews = () => { setEditingNews(null); setNewsTitle(''); setNewsContent(''); setNewsImage(''); setNewsEventId(''); setIsNews(true); setIsAnnouncement(false); setMessage(''); };
@@ -166,7 +251,39 @@ const AdminDashboard = ({ user, API_URL }) => {
     const handleDeleteNews = async (id) => { if(!window.confirm('Видалити?')) return; try { await axios.delete(`${API_URL}/news/${id}`, { headers: { Authorization: `Bearer ${token}` } }); fetchNews(); } catch (error) { alert('Помилка'); } };
 
     // --- RENDERS ---
-    const renderEventsView = () => ( <div className="grid md:grid-cols-2 gap-4"><form onSubmit={handleSaveEvent} className="bg-white p-4 shadow rounded space-y-3"><h3 className="font-bold text-lg">{editingEvent?'Редагувати':'Створити'} Подію</h3>{message && <p className="text-green-600">{message}</p>}<input className="w-full p-2 border rounded" placeholder="Назва" value={title} onChange={e=>setTitle(e.target.value)} required /><select className="w-full p-2 border rounded" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}</select><div className="flex gap-2"><input type="datetime-local" className="w-1/2 p-2 border rounded" value={startDate} onChange={e=>setStartDate(e.target.value)} required /><input type="datetime-local" className="w-1/2 p-2 border rounded" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div><input className="w-full p-2 border rounded" placeholder="Локація" value={locationName} onChange={e=>setLocationName(e.target.value)} required /><textarea className="w-full p-2 border rounded" placeholder="Опис" value={description} onChange={e=>setDescription(e.target.value)} rows="3" required /><button type="submit" className="w-full bg-indigo-600 text-white p-2 rounded">Зберегти</button>{editingEvent && <button type="button" onClick={() => setEditingEvent(null)} className="w-full bg-gray-300 p-2 rounded mt-2">Скасувати</button>}</form><div className="bg-gray-50 p-4 rounded max-h-96 overflow-y-auto"><h4 className="font-bold mb-2">Список Подій</h4>{events.map(ev => (<div key={ev.event_id} className="bg-white p-2 mb-2 border rounded flex justify-between group"><div><p className="font-bold text-gray-800">{ev.title}</p><p className="text-xs text-gray-500">{new Date(ev.start_datetime).toLocaleDateString()} {ev.first_name && (<span className="ml-2 bg-indigo-50 text-indigo-700 px-1.5 rounded font-bold">👤 {ev.first_name} {ev.last_name}</span>)}</p></div><div className="flex gap-1"><button onClick={()=>startEditEvent(ev)} className="px-2 border rounded hover:bg-gray-100">✏️</button><button onClick={()=>handleDeleteEvent(ev.event_id)} className="px-2 border rounded hover:bg-red-50 text-red-500">🗑️</button></div></div>))}</div></div> );
+    const renderEventsView = () => ( 
+        <div className="grid md:grid-cols-2 gap-4">
+            <form onSubmit={handleSaveEvent} className="bg-white p-4 shadow rounded space-y-3">
+                <h3 className="font-bold text-lg">{editingEvent?'Редагувати':'Створити'} Подію</h3>
+                {message && <p className="text-green-600 font-medium">{message}</p>}
+                <input className="w-full p-2 border rounded" placeholder="Назва" value={title} onChange={e=>setTitle(e.target.value)} required />
+                <select className="w-full p-2 border rounded" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}</select>
+                <div className="flex gap-2"><input type="datetime-local" className="w-1/2 p-2 border rounded" value={startDate} onChange={e=>setStartDate(e.target.value)} required /><input type="datetime-local" className="w-1/2 p-2 border rounded" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>
+                <input className="w-full p-2 border rounded" placeholder="Локація" value={locationName} onChange={e=>setLocationName(e.target.value)} required />
+                <textarea className="w-full p-2 border rounded" placeholder="Опис" value={description} onChange={e=>setDescription(e.target.value)} rows="3" required />
+                <button type="submit" className="w-full bg-indigo-600 text-white p-2 rounded">Зберегти</button>
+                {editingEvent && <button type="button" onClick={() => setEditingEvent(null)} className="w-full bg-gray-300 p-2 rounded mt-2">Скасувати</button>}
+            </form>
+            
+            <div className="bg-gray-50 p-4 rounded max-h-96 overflow-y-auto">
+                <h4 className="font-bold mb-2">Список Подій</h4>
+                {events.map(ev => (
+                    <div key={ev.event_id} className="bg-white p-2 mb-2 border rounded flex justify-between group">
+                        <div>
+                            <p className="font-bold text-gray-800">{ev.title}</p>
+                            <p className="text-xs text-gray-500">{new Date(ev.start_datetime).toLocaleDateString()} {ev.first_name && (<span className="ml-2 bg-indigo-50 text-indigo-700 px-1.5 rounded font-bold">👤 {ev.first_name} {ev.last_name}</span>)}</p>
+                        </div>
+                        <div className="flex gap-1 items-start">
+                            <button onClick={()=>openRepeatModal(ev)} className="px-2 py-1 border rounded bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold" title="Дублювати подію">🔁</button>
+                            <button onClick={()=>startEditEvent(ev)} className="px-2 py-1 border rounded hover:bg-gray-100">✏️</button>
+                            <button onClick={()=>handleDeleteEvent(ev.event_id)} className="px-2 py-1 border rounded hover:bg-red-50 text-red-500">🗑️</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div> 
+    );
+    
     const renderTasksView = () => ( <div className="bg-white p-4 rounded shadow"><h3 className="font-bold mb-4">Завдання</h3><select className="w-full p-2 border rounded mb-4" onChange={e => {setSelectedEventId(e.target.value); setEditingTask(null);}}><option value="">Оберіть подію...</option>{events.map(ev => <option key={ev.event_id} value={ev.event_id}>{ev.title}</option>)}</select>{selectedEventId && (<div className="grid md:grid-cols-2 gap-4"><div><TaskForm eventId={selectedEventId} eventTitle="" API_URL={API_URL} token={token} editingTask={editingTask} onCancelEdit={()=>setEditingTask(null)} onSuccess={()=>{fetchTasks(selectedEventId); setEditingTask(null);}} /></div><div className="bg-gray-50 p-4 rounded-xl border border-gray-200"><h4 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">📋 Список Завдань</h4><TaskList tasks={tasks} loading={loadingTasks} onEdit={(task) => { setEditingTask(task); window.scrollTo({ top: 200, behavior: 'smooth' }); }} onDelete={handleDeleteTask}/></div></div>)}</div> );
     
     // --- [ОНОВЛЕНА] СТАТИСТИКА З ГРУПУВАННЯМ ---
@@ -215,20 +332,16 @@ const AdminDashboard = ({ user, API_URL }) => {
                             
                             <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar space-y-4">
                                 {eventDetails.tasks && eventDetails.tasks.map(task => {
-                                    // Фільтруємо волонтерів для цього завдання
                                     const taskVolunteers = eventDetails.volunteers.filter(v => v.task_id === task.task_id);
                                     
                                     return (
                                         <div key={task.task_id} className="bg-white rounded-lg shadow-sm border border-orange-100 overflow-hidden">
-                                            {/* Заголовок групи */}
                                             <div className="bg-orange-100/50 px-3 py-2 flex justify-between items-center border-b border-orange-100">
                                                 <span className="font-bold text-orange-900">{task.title}</span>
                                                 <span className={`text-xs font-bold px-2 py-0.5 rounded ${taskVolunteers.length >= task.required_volunteers ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                     {taskVolunteers.length} / {task.required_volunteers}
                                                 </span>
                                             </div>
-                                            
-                                            {/* Список людей у групі */}
                                             <div className="p-2">
                                                 {taskVolunteers.length === 0 ? (
                                                     <p className="text-xs text-gray-400 italic pl-2">Поки нікого...</p>
@@ -247,10 +360,7 @@ const AdminDashboard = ({ user, API_URL }) => {
                                         </div>
                                     );
                                 })}
-                                
-                                {eventDetails.tasks && eventDetails.tasks.length === 0 && (
-                                    <p className="text-gray-500 italic">Завдань не створено.</p>
-                                )}
+                                {eventDetails.tasks && eventDetails.tasks.length === 0 && <p className="text-gray-500 italic">Завдань не створено.</p>}
                             </div>
                         </div>
                     </div>
@@ -259,12 +369,10 @@ const AdminDashboard = ({ user, API_URL }) => {
         </div> 
     );
 
-    // --- [ОНОВЛЕНІ] КОРИСТУВАЧІ З ТЕЛЕФОНАМИ ---
     const renderUsersView = () => ( 
         <div className="bg-white p-6 rounded-xl shadow-lg border border-purple-200">
             <h3 className="font-bold text-2xl mb-6 text-purple-800">Керування Користувачами</h3>
             {message && <p className="text-green-600 mb-4 bg-green-50 p-2 rounded">{message}</p>}
-            
             <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="min-w-full leading-normal text-left">
                     <thead>
@@ -285,28 +393,16 @@ const AdminDashboard = ({ user, API_URL }) => {
                                     <div className="text-xs text-gray-400">ID: {u.user_id}</div>
                                 </td>
                                 <td className="px-5 py-4 text-sm text-gray-600">{u.email}</td>
-                                <td className="px-5 py-4 text-sm font-medium text-green-700">
-                                    {u.whatsapp || <span className="text-gray-300">-</span>}
-                                </td>
-                                <td className="px-5 py-4 text-sm text-gray-600">
-                                    {u.uk_phone || <span className="text-gray-300">-</span>}
-                                </td>
+                                <td className="px-5 py-4 text-sm font-medium text-green-700">{u.whatsapp || <span className="text-gray-300">-</span>}</td>
+                                <td className="px-5 py-4 text-sm text-gray-600">{u.uk_phone || <span className="text-gray-300">-</span>}</td>
                                 <td className="px-5 py-4">
                                     <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'Admin' ? 'bg-red-100 text-red-800' : u.role === 'Organizer' ? 'bg-green-100 text-green-800' : u.role === 'Editor' ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-800'}`}>
                                         {u.role}
                                     </span>
                                 </td>
                                 <td className="px-5 py-4">
-                                    <select 
-                                        value={u.role} 
-                                        onChange={(e) => handleRoleChange(u.user_id, e.target.value)} 
-                                        disabled={u.user_id === user.user_id} 
-                                        className="border rounded p-1 text-sm bg-white cursor-pointer hover:border-purple-400"
-                                    >
-                                        <option value="User">User</option>
-                                        <option value="Organizer">Organizer</option>
-                                        <option value="Admin">Admin</option>
-                                        <option value="Editor">Editor</option>
+                                    <select value={u.role} onChange={(e) => handleRoleChange(u.user_id, e.target.value)} disabled={u.user_id === user.user_id} className="border rounded p-1 text-sm bg-white cursor-pointer hover:border-purple-400">
+                                        <option value="User">User</option><option value="Organizer">Organizer</option><option value="Admin">Admin</option><option value="Editor">Editor</option>
                                     </select>
                                 </td>
                             </tr>
@@ -320,7 +416,7 @@ const AdminDashboard = ({ user, API_URL }) => {
     const renderNewsView = () => ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in"><div className="lg:col-span-2 bg-white p-6 shadow-xl rounded-xl border border-pink-200"><div className="flex justify-between items-center mb-6"><h3 className="text-2xl font-semibold text-pink-700">{editingNews ? '✏️ Редагування' : '📢 Публікація'}</h3>{editingNews && <button onClick={cancelEditNews} className="text-sm bg-gray-100 px-3 py-1 rounded">Скасувати</button>}</div>{message && <div className="p-3 bg-blue-50 text-blue-800 rounded mb-4">{message}</div>}<form onSubmit={handleSaveNews} className="space-y-4"><div><label className="block font-medium text-gray-700 mb-2">Тип публікації</label><div className="flex gap-4"><label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-3 py-2 rounded-lg border border-blue-100"><input type="checkbox" checked={isNews} onChange={(e) => setIsNews(e.target.checked)} className="w-5 h-5 text-blue-600" /><span className="font-bold text-blue-800">📰 Новина</span></label><label className="flex items-center gap-2 cursor-pointer bg-pink-50 px-3 py-2 rounded-lg border border-pink-100"><input type="checkbox" checked={isAnnouncement} onChange={(e) => setIsAnnouncement(e.target.checked)} className="w-5 h-5 text-pink-600" /><span className="font-bold text-pink-800">📣 Анонс події</span></label></div></div><input type="text" placeholder="Заголовок" value={newsTitle} onChange={e => setNewsTitle(e.target.value)} required className="w-full p-3 border rounded-lg" /><div><label className="block text-sm font-medium text-gray-700 mb-1">Прив'язати до події</label><select value={newsEventId} onChange={e => setNewsEventId(e.target.value)} className="w-full p-3 border rounded-lg bg-white"><option value="">-- Без прив'язки --</option>{events.map(ev => (<option key={ev.event_id} value={ev.event_id}>{ev.title} ({new Date(ev.start_datetime).toLocaleDateString()})</option>))}</select></div><input type="text" placeholder="URL картинки" value={newsImage} onChange={e => setNewsImage(e.target.value)} className="w-full p-3 border rounded-lg" /><textarea placeholder="Текст..." value={newsContent} onChange={e => setNewsContent(e.target.value)} rows="5" required className="w-full p-3 border rounded-lg" /><button type="submit" className={`w-full text-white font-bold py-3 rounded-lg transition ${editingNews ? 'bg-orange-500' : 'bg-pink-600 hover:bg-pink-700'}`}>{editingNews ? 'Зберегти Зміни' : 'Опублікувати'}</button></form></div><div className="bg-gray-50 p-4 rounded-xl border border-gray-200 h-fit max-h-[800px] overflow-y-auto"><h4 className="font-bold text-gray-700 mb-4 sticky top-0 bg-gray-50 pb-2">Архіви</h4>{newsList.map(n => (<div key={n.news_id} className={`bg-white p-3 mb-3 rounded shadow-sm border flex flex-col gap-2 ${editingNews?.news_id === n.news_id ? 'ring-2 ring-orange-400' : ''}`}>{n.image_url && <img src={n.image_url} alt="preview" className="w-full h-24 object-cover rounded" />}<div className="flex gap-2 flex-wrap">{n.is_news && <span className="text-xs px-2 py-1 rounded text-white bg-blue-500">Новина</span>}{n.is_announcement && <span className="text-xs px-2 py-1 rounded text-white bg-pink-500">Анонс</span>}</div><h5 className="font-bold mt-1">{n.title}</h5><div className="flex gap-2 justify-end mt-2"><button onClick={() => startEditNews(n)} className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded px-2 py-1">✏️</button><button onClick={() => handleDeleteNews(n.news_id)} className="text-xs bg-red-50 text-red-600 border border-red-200 rounded px-2 py-1">🗑️</button></div></div>))}</div></div> );
 
     return (
-        <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+        <div className="container mx-auto p-4 md:p-8 max-w-7xl relative">
             <h2 className="text-3xl font-bold mb-4">Панель Керування ({user.role})</h2>
             <div className="flex space-x-2 overflow-x-auto border-b mb-6 pb-1">
                 <button onClick={() => setView('events')} className={`px-4 pb-2 border-b-4 ${view === 'events' ? 'border-indigo-600' : 'border-transparent'}`}>Події</button>
@@ -330,6 +426,50 @@ const AdminDashboard = ({ user, API_URL }) => {
                 {user.role === 'Admin' && <button onClick={() => setView('users')} className={`px-4 pb-2 border-b-4 ${view === 'users' ? 'border-purple-600' : 'border-transparent'}`}>Користувачі</button>}
             </div>
             {view === 'events' && renderEventsView()}{view === 'tasks' && renderTasksView()}{view === 'news' && renderNewsView()}{view === 'stats' && renderStatsView()}{view === 'users' && user.role === 'Admin' && renderUsersView()}
+            
+            {/* МОДАЛЬНЕ ВІКНО ПОВТОРЕННЯ */}
+            {repeatModalOpen && eventToRepeat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800">🔁 Повторити подію</h3>
+                        <p className="text-sm text-gray-500 mb-4">Ви створюєте копії для: <strong>{eventToRepeat.title}</strong></p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Інтервал повторення</label>
+                                <div className="flex gap-2 mt-1">
+                                    <input type="number" min="1" value={repeatIntervalValue} onChange={(e) => setRepeatIntervalValue(parseInt(e.target.value))} className="border rounded p-2 w-20" />
+                                    <select value={repeatIntervalType} onChange={(e) => setRepeatIntervalType(e.target.value)} className="border rounded p-2 flex-grow">
+                                        <option value="week">Тижнів (напр. щосуботи)</option>
+                                        <option value="day">Днів</option>
+                                        <option value="month">Місяців (того ж числа)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Кількість копій</label>
+                                <input type="number" min="1" max="50" value={repeatCount} onChange={(e) => setRepeatCount(parseInt(e.target.value))} className="border rounded p-2 w-full mt-1" />
+                            </div>
+                            
+                            <div className="text-sm bg-yellow-50 text-yellow-800 p-3 rounded border border-yellow-200">
+                                ⚠️ Увага: Буде створено {repeatCount} нових подій разом із завданнями волонтерів.
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => setRepeatModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Скасувати</button>
+                            <button 
+                                onClick={handleRepeatEvent} 
+                                disabled={isRepeating}
+                                className={`px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 flex items-center gap-2 ${isRepeating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {isRepeating ? '⏳ Створення...' : '✅ Створити копії'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
