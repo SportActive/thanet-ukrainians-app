@@ -34,7 +34,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Новий стейт для QR джерела
   const [isQrSource, setIsQrSource] = useState(false);
 
   // 1. Fetch Events
@@ -68,10 +67,12 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
           if (eventToOpen) {
-              setCurrentDate(new Date(targetEvent.date));
+              // ВАЖЛИВА ЗМІНА: Якщо дата не передана (як у QR), беремо її з події
+              const dateToSet = targetEvent.date ? new Date(targetEvent.date) : parseISO(eventToOpen.start_datetime);
+              setCurrentDate(dateToSet);
+              
               setSelectedEvent(eventToOpen);
               
-              // Якщо це QR, відразу відкриваємо реєстрацію, інакше - Інфо
               if (params.get('source') === 'qr') {
                   setMode('register');
               } else {
@@ -83,7 +84,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           }
       }
 
-      // 3. Автозаповнення з телефону (LocalStorage)
+      // 3. Автозаповнення
       if (!user) {
         const savedName = localStorage.getItem('u_guest_name');
         const savedContact = localStorage.getItem('u_guest_contact');
@@ -130,13 +131,10 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     let contactToSend = user?.whatsapp || regContact;
     let nameToSend = user ? `${user.first_name} ${user.last_name || ''}` : regName;
 
-    // ЛОГІКА ВАЛІДАЦІЇ
     if (!isQrSource) {
-        // Якщо це звичайна реєстрація (не QR) - вимагаємо дані
         if (!contactToSend) { alert("Будь ласка, вкажіть номер WhatsApp для зв'язку!"); return; }
         if (!nameToSend) { alert("Будь ласка, вкажіть ваше Ім'я!"); return; }
     } else {
-        // Якщо це QR вхід і поля пусті - заповнюємо автоматично
         if (!nameToSend) nameToSend = "Гість (QR-CheckIn)";
         if (!contactToSend) contactToSend = "On-site"; 
     }
@@ -153,7 +151,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
             comment: regComment
         });
         
-        // Зберігаємо в телефон тільки якщо людина реально щось ввела
         if (!user && regName && regContact) {
             localStorage.setItem('u_guest_name', regName);
             localStorage.setItem('u_guest_contact', regContact);
@@ -171,7 +168,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   const handleTaskSignup = async (taskId) => {
     const contactToSend = user?.whatsapp || guestWhatsapp;
 
-    // Зберігаємо дані перед відправкою, якщо вони введені
     if (!user && guestName && guestWhatsapp) {
         localStorage.setItem('u_guest_name', guestName);
         localStorage.setItem('u_guest_contact', guestWhatsapp);
@@ -241,7 +237,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     ));
   };
 
-  // Render Views
   const renderMonthView = () => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);

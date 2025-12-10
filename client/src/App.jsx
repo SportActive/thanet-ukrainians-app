@@ -41,18 +41,23 @@ const App = () => {
             }
         }
 
-        // 2. [НОВЕ] Перевірка URL параметрів (чи є посилання на новину?)
+        // 2. Перевірка URL параметрів
         const params = new URLSearchParams(window.location.search);
         const newsIdFromUrl = params.get('news_id');
+        const eventIdFromUrl = params.get('event_id'); // <--- ЛОВИМО EVENT_ID
         
         if (newsIdFromUrl) {
             setCurrentPage('news');
             setTargetNewsId(newsIdFromUrl);
-            // Очищаємо URL, щоб він виглядав гарно (опціонально)
             window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (eventIdFromUrl) {
+            // ЯКЩО Є EVENT_ID (наприклад, з QR-коду)
+            setCurrentPage('calendar');
+            // Передаємо ID. Дату ставимо null, бо ми її ще не знаємо (CalendarPage знайде її сам)
+            setCalendarTargetEvent({ id: parseInt(eventIdFromUrl), date: null });
+            // Ми НЕ очищаємо URL тут, щоб параметр source=qr залишився доступним для CalendarPage
         } else if (user && ['Admin', 'Organizer', 'Editor'].includes(user.role)) {
-             // Якщо адмін і немає спец. посилання -> перевіряємо, чи не був він в адмінці
-             // (логіка за замовчуванням)
+             // Логіка для адмінів за замовчуванням
         }
 
     }, []);
