@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { addDays, addWeeks, addMonths, parseISO, formatISO } from 'date-fns'; // Додали функції для роботи з датами
+import { addDays, addWeeks, addMonths, parseISO, formatISO } from 'date-fns';
+import QRCode from 'react-qr-code';
 
 // --- КОМПОНЕНТ: ФОРМА ЗАВДАННЯ ---
 const TaskForm = ({ eventId, eventTitle, API_URL, token, onSuccess, editingTask, onCancelEdit }) => {
@@ -85,11 +86,14 @@ const AdminDashboard = ({ user, API_URL }) => {
     // --- REPEAT MODAL STATE ---
     const [repeatModalOpen, setRepeatModalOpen] = useState(false);
     const [eventToRepeat, setEventToRepeat] = useState(null);
-    const [repeatCount, setRepeatCount] = useState(1); // Скільки разів повторити
-    const [repeatIntervalType, setRepeatIntervalType] = useState('week'); // week, day
-    const [repeatIntervalValue, setRepeatIntervalValue] = useState(1); // кожні X тижнів
+    const [repeatCount, setRepeatCount] = useState(1);
+    const [repeatIntervalType, setRepeatIntervalType] = useState('week');
+    const [repeatIntervalValue, setRepeatIntervalValue] = useState(1);
     const [isRepeating, setIsRepeating] = useState(false);
-    // --------------------------
+    
+    // --- QR MODAL STATE ---
+    const [qrModalOpen, setQrModalOpen] = useState(false);
+    const [qrEvent, setQrEvent] = useState(null);
 
     const [tasks, setTasks] = useState([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
@@ -162,7 +166,7 @@ const AdminDashboard = ({ user, API_URL }) => {
     const handleDeleteTask = async (id) => { try { await axios.delete(`${API_URL}/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` } }); fetchTasks(selectedEventId); } catch(e){alert('Помилка');} };
     const handleRoleChange = async (uid, role) => { try { await axios.put(`${API_URL}/auth/users/${uid}/role`, {role}, { headers: { Authorization: `Bearer ${token}` } }); setMessage(`Роль змінено на ${role}`); fetchUsers(); } catch(e){ alert('Error'); } };
 
-    // --- ЛОГІКА ПОВТОРЕННЯ ПОДІЙ ---
+    // --- ЛОГІКА ПОВТОРЕННЯ ---
     const openRepeatModal = (ev) => {
         setEventToRepeat(ev);
         setRepeatModalOpen(true);
@@ -173,75 +177,47 @@ const AdminDashboard = ({ user, API_URL }) => {
         if (!eventToRepeat) return;
         setIsRepeating(true);
         setMessage('🔄 Створення копій, зачекайте...');
-
         try {
-            // 1. Отримуємо список завдань для оригінальної події
             let originalTasks = [];
-            try {
-                const tasksRes = await axios.get(`${API_URL}/tasks/${eventToRepeat.event_id}`, { headers: { Authorization: `Bearer ${token}` } });
-                originalTasks = tasksRes.data;
-            } catch (err) {
-                console.warn('Не вдалося отримати завдання, копіюємо лише подію');
-            }
+            try { const tasksRes = await axios.get(`${API_URL}/tasks/${eventToRepeat.event_id}`, { headers: { Authorization: `Bearer ${token}` } }); originalTasks = tasksRes.data; } catch (err) {}
 
             const baseDate = parseISO(eventToRepeat.start_datetime);
             const hasEndDate = !!eventToRepeat.end_datetime;
             const duration = hasEndDate ? (parseISO(eventToRepeat.end_datetime) - baseDate) : 0;
 
-            // 2. Цикл створення копій
             for (let i = 1; i <= repeatCount; i++) {
                 let newStartDate;
-                
-                // Розрахунок нової дати
-                if (repeatIntervalType === 'week') {
-                    newStartDate = addWeeks(baseDate, i * repeatIntervalValue);
-                } else if (repeatIntervalType === 'day') {
-                    newStartDate = addDays(baseDate, i * repeatIntervalValue);
-                } else if (repeatIntervalType === 'month') {
-                    newStartDate = addMonths(baseDate, i * repeatIntervalValue);
-                }
+                if (repeatIntervalType === 'week') newStartDate = addWeeks(baseDate, i * repeatIntervalValue);
+                else if (repeatIntervalType === 'day') newStartDate = addDays(baseDate, i * repeatIntervalValue);
+                else if (repeatIntervalType === 'month') newStartDate = addMonths(baseDate, i * repeatIntervalValue);
 
                 const newEndDate = hasEndDate ? new Date(newStartDate.getTime() + duration) : null;
-
-                // Формування даних події
                 const eventData = {
-                    title: eventToRepeat.title,
-                    description: eventToRepeat.description,
-                    location_name: eventToRepeat.location_name,
-                    start_datetime: formatISO(newStartDate), // перетворення в ISO рядок
-                    end_datetime: newEndDate ? formatISO(newEndDate) : null,
-                    is_published: true,
-                    category: eventToRepeat.category
+                    title: eventToRepeat.title, description: eventToRepeat.description, location_name: eventToRepeat.location_name,
+                    start_datetime: formatISO(newStartDate), end_datetime: newEndDate ? formatISO(newEndDate) : null,
+                    is_published: true, category: eventToRepeat.category
                 };
 
-                // Створення події
                 const createRes = await axios.post(`${API_URL}/events`, eventData, { headers: { Authorization: `Bearer ${token}` } });
-                const newEventId = createRes.data.eventId || createRes.data.insertId; // Залежить від того, що повертає бекенд
+                const newEventId = createRes.data.eventId || createRes.data.insertId;
 
-                // Створення завдань для нової події
                 if (originalTasks.length > 0 && newEventId) {
                     for (const task of originalTasks) {
-                        const taskData = {
-                            event_id: newEventId,
-                            title: task.title,
-                            description: task.description,
-                            required_volunteers: task.required_volunteers,
-                            deadline_time: null // Дедлайн складніше перерахувати, краще залишити пустим або додати логіку
-                        };
-                        await axios.post(`${API_URL}/tasks`, taskData, { headers: { Authorization: `Bearer ${token}` } });
+                        await axios.post(`${API_URL}/tasks`, {
+                            event_id: newEventId, title: task.title, description: task.description,
+                            required_volunteers: task.required_volunteers, deadline_time: null
+                        }, { headers: { Authorization: `Bearer ${token}` } });
                     }
                 }
             }
+            setMessage(`✅ Успішно створено ${repeatCount} копій!`); setRepeatModalOpen(false); fetchEvents();
+        } catch (error) { setMessage('❌ Помилка при копіюванні.'); } finally { setIsRepeating(false); }
+    };
 
-            setMessage(`✅ Успішно створено ${repeatCount} копій!`);
-            setRepeatModalOpen(false);
-            fetchEvents(); // Оновити список
-        } catch (error) {
-            console.error(error);
-            setMessage('❌ Помилка при копіюванні. Можливо, частина подій створилася.');
-        } finally {
-            setIsRepeating(false);
-        }
+    // --- ЛОГІКА QR ---
+    const openQrModal = (ev) => {
+        setQrEvent(ev);
+        setQrModalOpen(true);
     };
 
     // --- NEWS HANDLERS ---
@@ -274,6 +250,8 @@ const AdminDashboard = ({ user, API_URL }) => {
                             <p className="text-xs text-gray-500">{new Date(ev.start_datetime).toLocaleDateString()} {ev.first_name && (<span className="ml-2 bg-indigo-50 text-indigo-700 px-1.5 rounded font-bold">👤 {ev.first_name} {ev.last_name}</span>)}</p>
                         </div>
                         <div className="flex gap-1 items-start">
+                            {/* QR Button */}
+                            <button onClick={()=>openQrModal(ev)} className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-200 text-gray-700 text-xs font-bold" title="QR для входу">📱</button>
                             <button onClick={()=>openRepeatModal(ev)} className="px-2 py-1 border rounded bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold" title="Дублювати подію">🔁</button>
                             <button onClick={()=>startEditEvent(ev)} className="px-2 py-1 border rounded hover:bg-gray-100">✏️</button>
                             <button onClick={()=>handleDeleteEvent(ev.event_id)} className="px-2 py-1 border rounded hover:bg-red-50 text-red-500">🗑️</button>
@@ -286,7 +264,6 @@ const AdminDashboard = ({ user, API_URL }) => {
     
     const renderTasksView = () => ( <div className="bg-white p-4 rounded shadow"><h3 className="font-bold mb-4">Завдання</h3><select className="w-full p-2 border rounded mb-4" onChange={e => {setSelectedEventId(e.target.value); setEditingTask(null);}}><option value="">Оберіть подію...</option>{events.map(ev => <option key={ev.event_id} value={ev.event_id}>{ev.title}</option>)}</select>{selectedEventId && (<div className="grid md:grid-cols-2 gap-4"><div><TaskForm eventId={selectedEventId} eventTitle="" API_URL={API_URL} token={token} editingTask={editingTask} onCancelEdit={()=>setEditingTask(null)} onSuccess={()=>{fetchTasks(selectedEventId); setEditingTask(null);}} /></div><div className="bg-gray-50 p-4 rounded-xl border border-gray-200"><h4 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">📋 Список Завдань</h4><TaskList tasks={tasks} loading={loadingTasks} onEdit={(task) => { setEditingTask(task); window.scrollTo({ top: 200, behavior: 'smooth' }); }} onDelete={handleDeleteTask}/></div></div>)}</div> );
     
-    // --- [ОНОВЛЕНА] СТАТИСТИКА З ГРУПУВАННЯМ ---
     const renderStatsView = () => ( 
         <div className="space-y-6">
             <h3 className="font-bold text-2xl">Статистика</h3>
@@ -306,7 +283,6 @@ const AdminDashboard = ({ user, API_URL }) => {
                 
                 {eventDetails && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* 1. ГОСТІ (ЗАГАЛЬНИЙ СПИСОК) */}
                         <div className="bg-green-50/70 p-4 rounded-xl border border-green-200">
                             <h5 className="font-bold text-green-800 mb-3 text-lg flex items-center gap-2">
                                 🙋‍♂️ Гості <span className="bg-green-200 text-green-900 px-2 py-0.5 rounded text-sm">{eventDetails.attendees.reduce((acc, curr) => acc + curr.adults_count + curr.children_count, 0)}</span>
@@ -323,17 +299,13 @@ const AdminDashboard = ({ user, API_URL }) => {
                                 ))}
                             </ul>
                         </div>
-                        
-                        {/* 2. ВОЛОНТЕРИ (ЗГРУПОВАНІ ПО ЗАВДАННЯХ) */}
                         <div className="bg-orange-50/70 p-4 rounded-xl border border-orange-200">
                             <h5 className="font-bold text-orange-800 mb-3 text-lg flex items-center gap-2">
                                 🤝 Волонтери <span className="bg-orange-200 text-orange-900 px-2 py-0.5 rounded text-sm">{eventDetails.volunteers.length}</span>
                             </h5>
-                            
                             <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar space-y-4">
                                 {eventDetails.tasks && eventDetails.tasks.map(task => {
                                     const taskVolunteers = eventDetails.volunteers.filter(v => v.task_id === task.task_id);
-                                    
                                     return (
                                         <div key={task.task_id} className="bg-white rounded-lg shadow-sm border border-orange-100 overflow-hidden">
                                             <div className="bg-orange-100/50 px-3 py-2 flex justify-between items-center border-b border-orange-100">
@@ -467,6 +439,30 @@ const AdminDashboard = ({ user, API_URL }) => {
                                 {isRepeating ? '⏳ Створення...' : '✅ Створити копії'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* МОДАЛЬНЕ ВІКНО QR КОДУ */}
+            {qrModalOpen && qrEvent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setQrModalOpen(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center max-w-sm w-full animate-fade-in text-center" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-2xl font-bold mb-2 text-gray-800">Вхід на подію</h3>
+                        <p className="text-gray-500 mb-6">{qrEvent.title}</p>
+                        
+                        <div className="bg-white p-4 rounded-xl border-4 border-gray-800 shadow-sm">
+                            <QRCode 
+                                value={`${window.location.origin}/?event_id=${qrEvent.event_id}&source=qr`} 
+                                size={200}
+                                level="H"
+                            />
+                        </div>
+                        
+                        <p className="text-sm text-gray-400 mt-6">Відскануйте цей код камерою телефону, щоб швидко зареєструватися на вході.</p>
+                        
+                        <button onClick={() => window.print()} className="mt-4 px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-full font-bold text-gray-700 flex items-center gap-2">
+                            🖨️ Роздрукувати
+                        </button>
                     </div>
                 </div>
             )}

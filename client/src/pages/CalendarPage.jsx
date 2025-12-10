@@ -19,16 +19,23 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [mode, setMode] = useState('view'); 
   const [activeTaskId, setActiveTaskId] = useState(null); 
+  
+  // Form Inputs
   const [guestName, setGuestName] = useState('');
   const [guestWhatsapp, setGuestWhatsapp] = useState('');
   const [guestUkPhone, setGuestUkPhone] = useState('');
   const [volComment, setVolComment] = useState(''); 
+  
   const [regName, setRegName] = useState('');
   const [regContact, setRegContact] = useState('');
   const [regAdults, setRegAdults] = useState(1);
   const [regChildren, setRegChildren] = useState(0);
   const [regComment, setRegComment] = useState(''); 
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Новий стейт для QR джерела
+  const [isQrSource, setIsQrSource] = useState(false);
 
   // 1. Fetch Events
   const fetchEvents = async () => {
@@ -48,20 +55,42 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     fetchEvents();
   }, [API_URL]);
 
-  // --- ОБРОБКА ПЕРЕХОДУ З НОВИН ---
+  // --- ОБРОБКА ПЕРЕХОДУ З НОВИН / QR КОДУ ---
   useEffect(() => {
+      // 1. Перевірка на QR-код
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('source') === 'qr') {
+          setIsQrSource(true);
+      }
+
+      // 2. Відкриття конкретної події
       if (targetEvent && events.length > 0) {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
           if (eventToOpen) {
               setCurrentDate(new Date(targetEvent.date));
               setSelectedEvent(eventToOpen);
-              setMode('view'); 
+              
+              // Якщо це QR, відразу відкриваємо реєстрацію, інакше - Інфо
+              if (params.get('source') === 'qr') {
+                  setMode('register');
+              } else {
+                  setMode('view');
+              }
+              
               fetchTasksForEvent(eventToOpen.event_id);
               if (onTargetHandled) onTargetHandled();
           }
       }
-  }, [targetEvent, events, onTargetHandled]); 
+
+      // 3. Автозаповнення з телефону (LocalStorage)
+      if (!user) {
+        const savedName = localStorage.getItem('u_guest_name');
+        const savedContact = localStorage.getItem('u_guest_contact');
+        if (savedName) { setGuestName(savedName); setRegName(savedName); }
+        if (savedContact) { setGuestWhatsapp(savedContact); setRegContact(savedContact); }
+      }
+  }, [targetEvent, events, onTargetHandled, user]); 
 
   const fetchTasksForEvent = async (eventId) => {
       setLoadingTasks(true);
@@ -98,11 +127,19 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
 
   // Forms Logic
   const handleEventRegistration = async () => {
-    const contactToSend = user?.whatsapp || regContact;
-    const nameToSend = user ? `${user.first_name} ${user.last_name || ''}` : regName;
+    let contactToSend = user?.whatsapp || regContact;
+    let nameToSend = user ? `${user.first_name} ${user.last_name || ''}` : regName;
 
-    if (!contactToSend) { alert("Будь ласка, вкажіть номер WhatsApp!"); return; }
-    if (!nameToSend) { alert("Будь ласка, вкажіть ваше Ім'я!"); return; }
+    // ЛОГІКА ВАЛІДАЦІЇ
+    if (!isQrSource) {
+        // Якщо це звичайна реєстрація (не QR) - вимагаємо дані
+        if (!contactToSend) { alert("Будь ласка, вкажіть номер WhatsApp для зв'язку!"); return; }
+        if (!nameToSend) { alert("Будь ласка, вкажіть ваше Ім'я!"); return; }
+    } else {
+        // Якщо це QR вхід і поля пусті - заповнюємо автоматично
+        if (!nameToSend) nameToSend = "Гість (QR-CheckIn)";
+        if (!contactToSend) contactToSend = "On-site"; 
+    }
 
     setIsSubmitting(true);
     try {
@@ -115,7 +152,14 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
             children: parseInt(regChildren),
             comment: regComment
         });
-        alert(`🎉 Ви успішно зареєстровані! (${parseInt(regAdults) + parseInt(regChildren)} чол.)`);
+        
+        // Зберігаємо в телефон тільки якщо людина реально щось ввела
+        if (!user && regName && regContact) {
+            localStorage.setItem('u_guest_name', regName);
+            localStorage.setItem('u_guest_contact', regContact);
+        }
+
+        alert(`🎉 Ласкаво просимо! Враховано: ${parseInt(regAdults) + parseInt(regChildren)} чол.`);
         closeModal();
     } catch (error) {
         alert(`Помилка: ${error.response?.data?.message || 'Спробуйте пізніше'}`);
@@ -126,6 +170,13 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
 
   const handleTaskSignup = async (taskId) => {
     const contactToSend = user?.whatsapp || guestWhatsapp;
+
+    // Зберігаємо дані перед відправкою, якщо вони введені
+    if (!user && guestName && guestWhatsapp) {
+        localStorage.setItem('u_guest_name', guestName);
+        localStorage.setItem('u_guest_contact', guestWhatsapp);
+    }
+
     if (!contactToSend) { alert("Введіть номер WhatsApp!"); return; }
     
     setIsSubmitting(true);
@@ -150,7 +201,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
         alert("Ви успішно записані!");
         setActiveTaskId(null); 
         fetchTasksForEvent(selectedEvent.event_id); 
-        setGuestName(''); setGuestWhatsapp(''); setVolComment('');
+        setVolComment('');
     } catch (error) {
         alert("Помилка запису.");
     } finally {
@@ -163,7 +214,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     return events.filter(event => isSameDay(parseISO(event.start_datetime), day));
   };
 
-  // --- НОВА ФУНКЦІЯ ФОРМАТУВАННЯ ТЕКСТУ ---
   const formatText = (text) => {
     if (!text) return <p className="text-gray-500 italic">Опис відсутній.</p>;
     
@@ -328,7 +378,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                                 <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-sm font-medium">🏷️ {selectedEvent.category || 'Подія'}</span>
                             </div>
                             
-                            {/* ТУТ БУЛА ЗМІНА: ВИКЛИК formatText ЗАМІСТЬ <p> */}
                             <div className="text-gray-700 text-lg leading-relaxed">
                                 {formatText(selectedEvent.description)}
                             </div>
@@ -343,11 +392,23 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                     {/* REGISTER MODE */}
                     {mode === 'register' && (
                         <div className="animate-fade-in space-y-4">
-                            <h4 className="text-xl font-bold text-gray-800 text-center mb-4">Реєстрація на подію</h4>
+                            <h4 className="text-xl font-bold text-gray-800 text-center mb-4">
+                                {isQrSource ? 'Швидка реєстрація (на вході)' : 'Реєстрація на подію'}
+                            </h4>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {(!user || !user.first_name) && <label className="block text-sm font-medium text-gray-700">Ваше Ім'я* <input type="text" value={regName} onChange={e => setRegName(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="Іван" /></label>}
-                                {(!user || !user.whatsapp) && <label className="block text-sm font-medium text-gray-700">Контакт (WhatsApp)* <input type="text" value={regContact} onChange={e => setRegContact(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="07..." /></label>}
+                                {(!user || !user.first_name) && (
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Ваше Ім'я {isQrSource ? <span className="text-gray-400 font-normal">(необов'язково)</span> : '*'}
+                                        <input type="text" value={regName} onChange={e => setRegName(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="Іван" />
+                                    </label>
+                                )}
+                                {(!user || !user.whatsapp) && (
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Контакт {isQrSource ? <span className="text-gray-400 font-normal">(необов'язково)</span> : '*'}
+                                        <input type="text" value={regContact} onChange={e => setRegContact(e.target.value)} className="mt-1 w-full p-2 border rounded-lg" placeholder="07..." />
+                                    </label>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
