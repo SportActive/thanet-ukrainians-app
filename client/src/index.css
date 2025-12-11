@@ -1,3 +1,45 @@
 @tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --- GOOGLE TRANSLATE STYLES --- */
+
+/* Приховуємо верхню синю панель Google */
+.goog-te-banner-frame.skiptranslate {
+    display: none !important;
+} 
+body {
+    top: 0px !important; 
+}
+
+/* Стилізуємо віджет: ховаємо логотип Google і зайвий текст */
+.goog-te-gadget {
+    font-family: inherit !important;
+    font-size: 0 !important; /* Це приховує текст "Powered by Google" */
+    color: transparent !important;
+}
+
+.goog-te-gadget span {
+    display: none !important;
+}
+
+/* Стилізуємо випадаючий список */
+.goog-te-gadget .goog-te-combo {
+    padding: 6px 12px;
+    border: 1px solid #e5e7eb; /* сірий колір tailwind */
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151; /* темний сірий */
+    cursor: pointer;
+    background-color: white;
+    outline: none;
+    margin: 0 !important;
+}
+
+/* Додатковий відступ для контейнера */
+#google_translate_element {
+    display: flex;
+    align-items: center;
+}
