@@ -67,10 +67,8 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
           if (eventToOpen) {
-              // ВАЖЛИВА ЗМІНА: Якщо дата не передана (як у QR), беремо її з події
               const dateToSet = targetEvent.date ? new Date(targetEvent.date) : parseISO(eventToOpen.start_datetime);
               setCurrentDate(dateToSet);
-              
               setSelectedEvent(eventToOpen);
               
               if (params.get('source') === 'qr') {
@@ -85,11 +83,16 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
       }
 
       // 3. Автозаповнення
-      if (!user) {
-        const savedName = localStorage.getItem('u_guest_name');
-        const savedContact = localStorage.getItem('u_guest_contact');
-        if (savedName) { setGuestName(savedName); setRegName(savedName); }
-        if (savedContact) { setGuestWhatsapp(savedContact); setRegContact(savedContact); }
+      if (user) {
+          // Якщо користувач залогінений - беремо дані з профілю
+          setRegName(`${user.first_name} ${user.last_name || ''}`.trim());
+          setRegContact(user.whatsapp || '');
+      } else {
+          // Якщо ні - шукаємо в пам'яті телефону (LocalStorage)
+          const savedName = localStorage.getItem('u_guest_name');
+          const savedContact = localStorage.getItem('u_guest_contact');
+          if (savedName) { setGuestName(savedName); setRegName(savedName); }
+          if (savedContact) { setGuestWhatsapp(savedContact); setRegContact(savedContact); }
       }
   }, [targetEvent, events, onTargetHandled, user]); 
 
@@ -131,12 +134,15 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
     let contactToSend = user?.whatsapp || regContact;
     let nameToSend = user ? `${user.first_name} ${user.last_name || ''}` : regName;
 
-    if (!isQrSource) {
-        if (!contactToSend) { alert("Будь ласка, вкажіть номер WhatsApp для зв'язку!"); return; }
-        if (!nameToSend) { alert("Будь ласка, вкажіть ваше Ім'я!"); return; }
-    } else {
+    // ВАЖЛИВО: Якщо це QR, але ми залогінені (user існує) - ми НЕ ставимо заглушку "Гість",
+    // а використовуємо реальне ім'я. Заглушка тільки для незалогінених.
+    if (!user && isQrSource) {
         if (!nameToSend) nameToSend = "Гість (QR-CheckIn)";
         if (!contactToSend) contactToSend = "On-site"; 
+    } else if (!isQrSource) {
+        // Звичайна реєстрація - сувора перевірка
+        if (!contactToSend) { alert("Будь ласка, вкажіть номер WhatsApp для зв'язку!"); return; }
+        if (!nameToSend) { alert("Будь ласка, вкажіть ваше Ім'я!"); return; }
     }
 
     setIsSubmitting(true);
@@ -151,6 +157,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
             comment: regComment
         });
         
+        // Зберігаємо в телефон тільки для гостей (не юзерів)
         if (!user && regName && regContact) {
             localStorage.setItem('u_guest_name', regName);
             localStorage.setItem('u_guest_contact', regContact);
@@ -390,6 +397,14 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                             <h4 className="text-xl font-bold text-gray-800 text-center mb-4">
                                 {isQrSource ? 'Швидка реєстрація (на вході)' : 'Реєстрація на подію'}
                             </h4>
+
+                            {/* --- БЛОК ПРИВІТАННЯ ДЛЯ ЮЗЕРА --- */}
+                            {user && (
+                                <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg text-center mb-2 animate-fade-in">
+                                    <p className="text-indigo-800 font-medium">👋 Привіт, {user.first_name}!</p>
+                                    <p className="text-xs text-indigo-600 mt-1">Система вас впізнала. Ваші контакти будуть використані автоматично.</p>
+                                </div>
+                            )}
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {(!user || !user.first_name) && (
