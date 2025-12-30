@@ -8,6 +8,9 @@ import { jwtDecode } from 'jwt-decode';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// 👇 ВАШЕ ПОСИЛАННЯ НА STRIPE
+const DONATE_LINK = 'https://buy.stripe.com/dRmdR842pa5AfCw1uu8Vi00';
+
 const App = () => {
     const [user, setUser] = useState(null); 
     const [currentPage, setCurrentPage] = useState('news'); 
@@ -127,8 +130,16 @@ const App = () => {
                         <NavButton target="news" label="Новини" icon="📰" />
                         <NavButton target="calendar" label="Календар" icon="📅" />
                         <NavButton target="about" label="Про нас" icon="ℹ️" />
+                        
+                        {/* 🟡 КНОПКА ДОНАТУ (Desktop) */}
+                        <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="ml-2 px-4 py-2 bg-yellow-400 text-blue-900 font-bold rounded-lg shadow-md hover:bg-yellow-300 transition flex items-center gap-2 transform hover:-translate-y-0.5">
+                            ☕ Підтримати
+                        </a>
+
                         {canAccessAdmin && (<button onClick={() => setCurrentPage('admin')} className={`ml-2 px-4 py-2 rounded-lg font-medium border flex items-center gap-2 transition ${currentPage === 'admin' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-transparent text-gray-600 hover:bg-gray-100'}`}>⚙️ Адмінка</button>)}
+                        
                         <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                        
                         {!user ? (<button onClick={() => setCurrentPage('login')} className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-semibold shadow-md hover:bg-indigo-700 transition transform hover:-translate-y-0.5">Вхід</button>) : (<div className="flex items-center gap-3"><span className="text-sm font-medium text-gray-700">Привіт, <span className="text-indigo-600 font-bold">{user.first_name}</span></span><button onClick={handleLogout} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg text-sm font-medium transition border border-transparent hover:border-red-100">Вихід</button></div>)}
                     </nav>
                     
@@ -142,7 +153,27 @@ const App = () => {
                         </button>
                     </div>
                 </div>
-                {isMenuOpen && (<div className="md:hidden bg-white border-t border-gray-100 shadow-xl absolute w-full left-0 z-40 p-4 space-y-2 animate-fade-in"><button onClick={() => {setCurrentPage('news'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'news' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📰 Новини та Анонси</button><button onClick={() => {setCurrentPage('calendar'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'calendar' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📅 Календар Подій</button><button onClick={() => {setCurrentPage('about'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'about' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>ℹ️ Про нас / Контакти</button>{canAccessAdmin && <button onClick={() => {setCurrentPage('admin'); setIsMenuOpen(false);}} className="w-full text-left p-3 rounded-xl bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 mt-2">⚙️ Адмін Панель</button>}<div className="border-t my-3"></div>{!user ? (<button onClick={() => {setCurrentPage('login'); setIsMenuOpen(false);}} className="w-full p-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md">Вхід / Реєстрація</button>) : (<div className="space-y-2"><p className="text-center text-sm text-gray-500">Ви увійшли як <strong>{user.first_name}</strong></p><button onClick={handleLogout} className="w-full p-3 text-red-600 bg-red-50 rounded-xl font-bold hover:bg-red-100 transition">Вийти з акаунту</button></div>)}</div>)}
+                
+                {/* MOBILE MENU */}
+                {isMenuOpen && (
+                    <div className="md:hidden bg-white border-t border-gray-100 shadow-xl absolute w-full left-0 z-40 p-4 space-y-2 animate-fade-in">
+                        
+                        {/* 🟡 КНОПКА ДОНАТУ (Mobile) */}
+                        <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="w-full text-center block p-3 bg-yellow-400 text-blue-900 rounded-xl font-bold shadow-sm mb-4">
+                            ☕ Підтримати проєкт
+                        </a>
+
+                        <button onClick={() => {setCurrentPage('news'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'news' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📰 Новини та Анонси</button>
+                        <button onClick={() => {setCurrentPage('calendar'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'calendar' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📅 Календар Подій</button>
+                        <button onClick={() => {setCurrentPage('about'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'about' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>ℹ️ Про нас / Контакти</button>
+                        
+                        {canAccessAdmin && <button onClick={() => {setCurrentPage('admin'); setIsMenuOpen(false);}} className="w-full text-left p-3 rounded-xl bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 mt-2">⚙️ Адмін Панель</button>}
+                        
+                        <div className="border-t my-3"></div>
+                        
+                        {!user ? (<button onClick={() => {setCurrentPage('login'); setIsMenuOpen(false);}} className="w-full p-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md">Вхід / Реєстрація</button>) : (<div className="space-y-2"><p className="text-center text-sm text-gray-500">Ви увійшли як <strong>{user.first_name}</strong></p><button onClick={handleLogout} className="w-full p-3 text-red-600 bg-red-50 rounded-xl font-bold hover:bg-red-100 transition">Вийти з акаунту</button></div>)}
+                    </div>
+                )}
             </header>
             <main className="flex-grow container mx-auto px-4 py-6 max-w-7xl">{renderContent()}</main>
             <footer className="bg-white border-t border-gray-200 mt-auto"><div className="container mx-auto px-4 py-6 text-center text-gray-500 text-sm"><p>© 2025 Thanet Ukrainians Community App.</p><p className="mt-1 text-xs">Розроблено для спільноти 💙💛</p></div></footer>
