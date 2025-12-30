@@ -133,7 +133,7 @@ const App = () => {
                         
                         {/* 🟡 КНОПКА ДОНАТУ (Desktop) */}
                         <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="ml-2 px-4 py-2 bg-yellow-400 text-blue-900 font-bold rounded-lg shadow-md hover:bg-yellow-300 transition flex items-center gap-2 transform hover:-translate-y-0.5">
-                            ☕ Підтримати громаду
+                            🪙 Підтримати громаду
                         </a>
 
                         {canAccessAdmin && (<button onClick={() => setCurrentPage('admin')} className={`ml-2 px-4 py-2 rounded-lg font-medium border flex items-center gap-2 transition ${currentPage === 'admin' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-transparent text-gray-600 hover:bg-gray-100'}`}>⚙️ Адмінка</button>)}
@@ -160,7 +160,7 @@ const App = () => {
                         
                         {/* 🟡 КНОПКА ДОНАТУ (Mobile) */}
                         <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="w-full text-center block p-3 bg-yellow-400 text-blue-900 rounded-xl font-bold shadow-sm mb-4">
-                            ☕ Підтримати громаду
+                            🪙 Підтримати громаду
                         </a>
 
                         <button onClick={() => {setCurrentPage('news'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-medium flex items-center gap-3 ${currentPage === 'news' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📰 Новини та Анонси</button>
