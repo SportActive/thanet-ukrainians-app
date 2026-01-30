@@ -114,8 +114,9 @@ const App = () => {
                 <div className="container mx-auto px-4 py-3 flex justify-between items-center max-w-7xl">
                     <div className="flex items-center gap-4">
                         <div onClick={() => setCurrentPage('news')} className="cursor-pointer flex items-center gap-2 group">
-                            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-200 transition group-hover:bg-indigo-700">🇺🇦</div>
-                            <div>
+  //                          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-200 transition group-hover:bg-indigo-700">🇺🇦</div>
+			    <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain drop-shadow-md transition transform group-hover:scale-110" />
+                          <div>
                                 <h1 className="text-xl font-bold text-gray-800 leading-tight group-hover:text-indigo-700 transition">Українці в Танеті</h1>
                                 <p className="text-xs text-gray-500 font-medium">Community App</p>
                             </div>
