@@ -98,13 +98,10 @@ const App = () => {
     const [user, setUser] = useState(null); 
     const [currentPage, setCurrentPage] = useState('news'); 
     const [isMenuOpen, setIsMenuOpen] = useState(false); 
-    
-    // Стан для переходу на конкретну подію
     const [calendarTargetEvent, setCalendarTargetEvent] = useState(null);
     const [targetNewsId, setTargetNewsId] = useState(null);
 
     useEffect(() => {
-        // Перевірка токена при завантаженні
         const token = localStorage.getItem('token');
         if (token) {
             try {
@@ -117,7 +114,6 @@ const App = () => {
             } catch (e) { localStorage.removeItem('token'); }
         }
         
-        // Обробка посилань (Deep Links)
         const params = new URLSearchParams(window.location.search);
         const eventId = params.get('event_id');
         const newsId = params.get('news_id');
@@ -126,12 +122,10 @@ const App = () => {
             setTargetNewsId(newsId);
             setCurrentPage('news');
         } else if (eventId) {
-            // Формуємо об'єкт так, як очікує CalendarPage
-            setCalendarTargetEvent({ id: parseInt(eventId), date: null }); 
+            setCalendarTargetEvent(eventId); 
             setCurrentPage('calendar');
         }
 
-        // Очищаємо URL, щоб не зациклювалось
         window.history.replaceState({}, document.title, window.location.pathname);
     }, []);
 
@@ -148,37 +142,15 @@ const App = () => {
         setIsMenuOpen(false);
     };
 
-    // --- ФУНКЦІЯ ПЕРЕХОДУ НА КАЛЕНДАР ---
-    const handleGoToCalendar = (eventId, eventDate) => {
-        setCalendarTargetEvent({ id: eventId, date: eventDate });
-        setCurrentPage('calendar');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
     const renderContent = () => {
         switch (currentPage) {
-            case 'news': 
-                return (
-                    <NewsPage 
-                        API_URL={API_URL} 
-                        targetNewsId={targetNewsId} 
-                        onGoToCalendar={handleGoToCalendar} // <-- ПЕРЕДАЛИ ФУНКЦІЮ СЮДИ
-                    />
-                );
-            case 'calendar': 
-                return (
-                    <CalendarPage 
-                        API_URL={API_URL} 
-                        user={user} 
-                        targetEvent={calendarTargetEvent} // <-- ПЕРЕДАЛИ ПОДІЮ СЮДИ
-                        onTargetHandled={() => setCalendarTargetEvent(null)} // Скидаємо після відкриття
-                    />
-                );
+            case 'news': return <NewsPage API_URL={API_URL} targetNewsId={targetNewsId} />;
+            case 'calendar': return <CalendarPage API_URL={API_URL} user={user} targetEventId={calendarTargetEvent} />;
             case 'login': return <LoginPage API_URL={API_URL} onLoginSuccess={handleLoginSuccess} />;
             case 'admin': return <AdminDashboard user={user} API_URL={API_URL} />;
             case 'about': return <AboutPage API_URL={API_URL} />;
             case 'change-password': return <ChangePasswordPage API_URL={API_URL} onCancel={() => setCurrentPage('news')} />;
-            default: return <NewsPage API_URL={API_URL} onGoToCalendar={handleGoToCalendar} />;
+            default: return <NewsPage API_URL={API_URL} />;
         }
     };
 
@@ -211,10 +183,12 @@ const App = () => {
                             <button onClick={() => setCurrentPage('login')} className="ml-2 px-5 py-2 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 shadow-lg transition transform hover:-translate-y-0.5">Вхід</button>
                         ) : (
                             <div className="relative group ml-2 h-10 flex items-center">
+                                {/* Кнопка користувача */}
                                 <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full font-bold text-gray-700 hover:bg-gray-200">
                                     👤 {user.first_name}
                                 </button>
                                 
+                                {/* ВИПРАВЛЕНЕ МЕНЮ: Додано pt-2 для містка і z-50 */}
                                 <div className="absolute right-0 top-full pt-2 w-48 hidden group-hover:block z-50">
                                     <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
                                         <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-50">🔐 Змінити пароль</button>
