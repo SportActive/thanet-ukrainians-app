@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const { Pool } = require('pg'); 
 const bcrypt = require('bcryptjs'); 
-const jwt = require('jsonwebtoken'); // <--- Додали бібліотеку сюди
+const jwt = require('jsonwebtoken'); 
 
 // Завантаження змінних
 dotenv.config({ path: '../.env' }); 
@@ -18,7 +18,7 @@ const pool = new Pool({
     }
 });
 
-// --- 2. ФУНКЦІЯ ПЕРЕВІРКИ (ВСТАВЛЕНА ПРЯМО ТУТ) ---
+// --- 2. ФУНКЦІЯ ПЕРЕВІРКИ АВТОРИЗАЦІЇ (MIDDLEWARE) ---
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -31,7 +31,6 @@ function authenticateToken(req, res, next) {
         next();
     });
 }
-// ----------------------------------------------------
 
 // --- 3. НАЛАШТУВАННЯ ---
 app.use(express.json()); 
@@ -69,7 +68,48 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/news', newsRoutes); 
 
-// --- 5. СКИНДАННЯ ПАРОЛЯ ---
+// --- 5. НОВИЙ МАРШРУТ: ЗМІНА ПАРОЛЯ КОРИСТУВАЧЕМ ---
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    // Отримуємо ID користувача з токена
+    const userId = req.user.user_id;
+
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ message: "Введіть старий та новий паролі" });
+    }
+
+    try {
+        // 1. Дістаємо поточний пароль з бази
+        const userRes = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
+        const user = userRes.rows[0];
+
+        if (!user) return res.status(404).json({ message: "Користувача не знайдено" });
+
+        // 2. Перевіряємо, чи підходить старий пароль
+        const validPassword = await bcrypt.compare(oldPassword, user.password_hash);
+        if (!validPassword) {
+            return res.status(401).json({ message: "Старий пароль неправильний!" });
+        }
+
+        // 3. Шифруємо новий пароль
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // 4. Оновлюємо в базі
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE user_id = $2',
+            [hashedPassword, userId]
+        );
+
+        res.json({ success: true, message: "Пароль успішно змінено!" });
+
+    } catch (err) {
+        console.error("Помилка зміни пароля:", err);
+        res.status(500).json({ message: "Помилка сервера" });
+    }
+});
+
+// --- 6. МАРШРУТ ДЛЯ АДМІНА: СКИНДАННЯ ПАРОЛЯ ---
 app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
     if (req.user.role !== 'Admin') {
         return res.status(403).json({ message: "Тільки Admin може це робити!" });
@@ -95,7 +135,7 @@ app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
     }
 });
 
-// --- 6. ЗАПУСК ---
+// --- 7. ЗАПУСК ---
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVER STARTED ON PORT ${PORT}`);
