@@ -1,11 +1,10 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const { Pool } = require('pg'); // Підключення до бази напряму тут
-const bcrypt = require('bcrypt'); // Для паролів
+const { Pool } = require('pg'); 
+const bcrypt = require('bcryptjs'); // <--- ЗМІНА ТУТ (було 'bcrypt')
 
-// Спробуємо підключити middleware авторизації. 
-// Якщо сервер впаде з помилкою "Cannot find module", закоментуйте цей рядок.
+// Якщо знову буде помилка про authorization, закоментуйте рядок нижче
 const authenticateToken = require('./middleware/authorization');
 
 // Завантаження змінних
@@ -13,7 +12,7 @@ dotenv.config({ path: '../.env' });
 
 const app = express();
 
-// --- 1. ПІДКЛЮЧЕННЯ ДО БАЗИ ДАНИХ (ПРЯМО ТУТ) ---
+// --- 1. ПІДКЛЮЧЕННЯ ДО БАЗИ ДАНИХ ---
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
@@ -37,8 +36,8 @@ app.use(cors({
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.log(`⚠️ CORS Blocked: ${origin}`);
-            callback(null, true); // Тимчасово дозволяємо все, щоб не блокувало
+            console.log(`⚠️ CORS Warning: ${origin}`);
+            callback(null, true); 
         }
     },
     credentials: true,
@@ -47,7 +46,6 @@ app.use(cors({
 }));
 
 // --- 3. МАРШРУТИ ---
-// Ваші старі маршрути
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
@@ -58,22 +56,19 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/news', newsRoutes); 
 
-// --- 4. НОВА ФУНКЦІЯ: СКИДАННЯ ПАРОЛЯ ---
+// --- 4. СКИНДАННЯ ПАРОЛЯ (Працює так само) ---
 app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
-    // Перевірка на адміна
     if (req.user.role !== 'Admin') {
         return res.status(403).json({ message: "Тільки Admin може це робити!" });
     }
 
     const { userId } = req.body;
-    const tempPassword = '12345'; // Тимчасовий пароль
+    const tempPassword = '12345'; 
 
     try {
-        // Хешуємо пароль
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(tempPassword, salt);
 
-        // Оновлюємо базу (використовуємо pool, який створили вище)
         await pool.query(
             'UPDATE users SET password_hash = $1 WHERE user_id = $2',
             [hashedPassword, userId]
