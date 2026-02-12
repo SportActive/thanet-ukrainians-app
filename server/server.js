@@ -2,10 +2,8 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const { Pool } = require('pg'); 
-const bcrypt = require('bcryptjs'); // <--- ЗМІНА ТУТ (було 'bcrypt')
-
-// Якщо знову буде помилка про authorization, закоментуйте рядок нижче
-const authenticateToken = require('./middleware/authorization');
+const bcrypt = require('bcryptjs'); 
+const jwt = require('jsonwebtoken'); // <--- Додали бібліотеку сюди
 
 // Завантаження змінних
 dotenv.config({ path: '../.env' }); 
@@ -20,7 +18,22 @@ const pool = new Pool({
     }
 });
 
-// --- 2. НАЛАШТУВАННЯ ---
+// --- 2. ФУНКЦІЯ ПЕРЕВІРКИ (ВСТАВЛЕНА ПРЯМО ТУТ) ---
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token == null) return res.sendStatus(401);
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+}
+// ----------------------------------------------------
+
+// --- 3. НАЛАШТУВАННЯ ---
 app.use(express.json()); 
 
 const allowedOrigins = [
@@ -45,7 +58,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// --- 3. МАРШРУТИ ---
+// --- 4. МАРШРУТИ ---
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
@@ -56,7 +69,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/news', newsRoutes); 
 
-// --- 4. СКИНДАННЯ ПАРОЛЯ (Працює так само) ---
+// --- 5. СКИНДАННЯ ПАРОЛЯ ---
 app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
     if (req.user.role !== 'Admin') {
         return res.status(403).json({ message: "Тільки Admin може це робити!" });
@@ -82,7 +95,7 @@ app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
     }
 });
 
-// --- 5. ЗАПУСК ---
+// --- 6. ЗАПУСК ---
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVER STARTED ON PORT ${PORT}`);
