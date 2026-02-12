@@ -94,6 +94,7 @@ const ChangePasswordPage = ({ API_URL, onCancel }) => {
     );
 };
 
+// --- ГОЛОВНИЙ КОМПОНЕНТ APP ---
 const App = () => {
     const [user, setUser] = useState(null); 
     const [currentPage, setCurrentPage] = useState('news'); 
@@ -110,7 +111,14 @@ const App = () => {
             try {
                 const decoded = jwtDecode(token);
                 if (decoded.exp * 1000 > Date.now()) {
-                    setUser({ user_id: decoded.user_id, role: decoded.role, first_name: decoded.first_name });
+                    // !!! ТУТ МИ ВИТЯГУЄМО ТЕЛЕФОНИ
+                    setUser({ 
+                        user_id: decoded.user_id, 
+                        role: decoded.role, 
+                        first_name: decoded.first_name,
+                        whatsapp: decoded.whatsapp, // <--- Важливо
+                        uk_phone: decoded.uk_phone  // <--- Важливо
+                    });
                 } else {
                     localStorage.removeItem('token');
                 }
@@ -126,18 +134,24 @@ const App = () => {
             setTargetNewsId(newsId);
             setCurrentPage('news');
         } else if (eventId) {
-            // Формуємо об'єкт так, як очікує CalendarPage
             setCalendarTargetEvent({ id: parseInt(eventId), date: null }); 
             setCurrentPage('calendar');
         }
 
-        // Очищаємо URL, щоб не зациклювалось
+        // Очищаємо URL
         window.history.replaceState({}, document.title, window.location.pathname);
     }, []);
 
     const handleLoginSuccess = (token, userData) => {
         localStorage.setItem('token', token);
-        setUser(userData);
+        // !!! ТУТ ТАКОЖ ЗБЕРІГАЄМО ТЕЛЕФОНИ
+        setUser({
+            user_id: userData.user_id,
+            role: userData.role,
+            first_name: userData.first_name,
+            whatsapp: userData.whatsapp, 
+            uk_phone: userData.uk_phone
+        });
         setCurrentPage('news');
     };
 
@@ -148,7 +162,7 @@ const App = () => {
         setIsMenuOpen(false);
     };
 
-    // --- ФУНКЦІЯ ПЕРЕХОДУ НА КАЛЕНДАР ---
+    // Функція переходу на календар
     const handleGoToCalendar = (eventId, eventDate) => {
         setCalendarTargetEvent({ id: eventId, date: eventDate });
         setCurrentPage('calendar');
@@ -162,16 +176,16 @@ const App = () => {
                     <NewsPage 
                         API_URL={API_URL} 
                         targetNewsId={targetNewsId} 
-                        onGoToCalendar={handleGoToCalendar} // <-- ПЕРЕДАЛИ ФУНКЦІЮ СЮДИ
+                        onGoToCalendar={handleGoToCalendar} 
                     />
                 );
             case 'calendar': 
                 return (
                     <CalendarPage 
                         API_URL={API_URL} 
-                        user={user} 
-                        targetEvent={calendarTargetEvent} // <-- ПЕРЕДАЛИ ПОДІЮ СЮДИ
-                        onTargetHandled={() => setCalendarTargetEvent(null)} // Скидаємо після відкриття
+                        user={user} // Тут тепер є whatsapp, тому поле зникне
+                        targetEvent={calendarTargetEvent} 
+                        onTargetHandled={() => setCalendarTargetEvent(null)} 
                     />
                 );
             case 'login': return <LoginPage API_URL={API_URL} onLoginSuccess={handleLoginSuccess} />;
@@ -211,10 +225,12 @@ const App = () => {
                             <button onClick={() => setCurrentPage('login')} className="ml-2 px-5 py-2 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 shadow-lg transition transform hover:-translate-y-0.5">Вхід</button>
                         ) : (
                             <div className="relative group ml-2 h-10 flex items-center">
+                                {/* Кнопка користувача */}
                                 <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full font-bold text-gray-700 hover:bg-gray-200">
                                     👤 {user.first_name}
                                 </button>
                                 
+                                {/* МЕНЮ КОРИСТУВАЧА (з виправленням зникання) */}
                                 <div className="absolute right-0 top-full pt-2 w-48 hidden group-hover:block z-50">
                                     <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
                                         <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-50">🔐 Змінити пароль</button>
@@ -234,6 +250,7 @@ const App = () => {
                     </button>
                 </div>
 
+                {/* МОБІЛЬНЕ МЕНЮ */}
                 {isMenuOpen && (
                     <div className="md:hidden bg-white border-t p-4 space-y-2 shadow-lg animate-fade-in-down">
                         <button onClick={() => {setCurrentPage('news'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'news' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📰 Новини</button>
