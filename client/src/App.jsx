@@ -9,7 +9,7 @@ import { jwtDecode } from 'jwt-decode';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const DONATE_LINK = 'https://buy.stripe.com/dRmdR842pa5AfCw1uu8Vi00';
 
-// --- НОВИЙ КОМПОНЕНТ: СТОРІНКА ЗМІНИ ПАРОЛЯ ---
+// --- КОМПОНЕНТ: СТОРІНКА ЗМІНИ ПАРОЛЯ ---
 const ChangePasswordPage = ({ API_URL, onCancel }) => {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -182,14 +182,18 @@ const App = () => {
                         {!user ? (
                             <button onClick={() => setCurrentPage('login')} className="ml-2 px-5 py-2 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 shadow-lg transition transform hover:-translate-y-0.5">Вхід</button>
                         ) : (
-                            <div className="relative group ml-2">
+                            <div className="relative group ml-2 h-10 flex items-center">
+                                {/* Кнопка користувача */}
                                 <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full font-bold text-gray-700 hover:bg-gray-200">
                                     👤 {user.first_name}
                                 </button>
-                                {/* Випадаюче меню для десктопу */}
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden hidden group-hover:block">
-                                    <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">🔐 Змінити пароль</button>
-                                    <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold">Вийти</button>
+                                
+                                {/* ВИПРАВЛЕНЕ МЕНЮ: Додано pt-2 для містка і z-50 */}
+                                <div className="absolute right-0 top-full pt-2 w-48 hidden group-hover:block z-50">
+                                    <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                                        <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-50">🔐 Змінити пароль</button>
+                                        <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition">Вийти</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -219,7 +223,6 @@ const App = () => {
                         ) : (
                             <div className="space-y-2 bg-gray-50 p-3 rounded-xl">
                                 <p className="text-center text-sm text-gray-500 mb-2">Ви увійшли як <strong>{user.first_name}</strong></p>
-                                {/* Кнопка зміни пароля в мобільному меню */}
                                 <button onClick={() => {setCurrentPage('change-password'); setIsMenuOpen(false);}} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-gray-700 font-bold text-sm mb-2">
                                     🔐 Змінити пароль
                                 </button>
