@@ -2,6 +2,12 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
+// --- ДОДАНІ ІМПОРТИ (ПЕРЕВІРТЕ ШЛЯХИ, ЯКЩО БУДЕ ПОМИЛКА) ---
+const pool = require('./db'); // Підключення до бази даних
+const bcrypt = require('bcrypt'); // Для шифрування паролів
+const authenticateToken = require('./middleware/authorization'); // Для перевірки прав адміна
+// -------------------------------------------------------------
+
 // Завантаження змінних (для локального запуску)
 dotenv.config({ path: '../.env' }); 
 
@@ -46,12 +52,43 @@ app.use((req, res, next) => {
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes'); 
 const taskRoutes = require('./routes/taskRoutes');
-const newsRoutes = require('./routes/newsRoutes'); // <--- ТУТ МАЄ БУТИ ТІЛЬКИ ОДИН РАЗ
+const newsRoutes = require('./routes/newsRoutes'); 
 
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes); 
 app.use('/api/tasks', taskRoutes);
-app.use('/api/news', newsRoutes); // <--- ПІДКЛЮЧЕННЯ
+app.use('/api/news', newsRoutes); 
+
+// === НОВИЙ МАРШРУТ: СКИДАННЯ ПАРОЛЯ ===
+app.post('/api/admin/reset-password', authenticateToken, async (req, res) => {
+    // 1. Перевіряємо, чи це адмін
+    if (req.user.role !== 'Admin') {
+        return res.status(403).json({ message: "Тільки адмін може це робити!" });
+    }
+
+    const { userId } = req.body;
+    const tempPassword = '12345'; // <-- ЦЕ БУДЕ НОВИЙ ПАРОЛЬ
+
+    try {
+        // 2. Шифруємо пароль
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(tempPassword, salt);
+
+        // 3. Оновлюємо в базі даних
+        // УВАГА: Переконайтесь, що таблиця називається 'users' і колонка 'password_hash'
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE user_id = $2',
+            [hashedPassword, userId]
+        );
+
+        res.json({ success: true, message: `Пароль скинуто на: ${tempPassword}` });
+
+    } catch (err) {
+        console.error("Помилка скидання:", err);
+        res.status(500).json({ message: "Помилка сервера при зміні пароля" });
+    }
+});
+// =====================================
 
 // Головна сторінка
 app.get('/', (req, res) => {

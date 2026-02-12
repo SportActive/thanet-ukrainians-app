@@ -166,6 +166,23 @@ const AdminDashboard = ({ user, API_URL }) => {
     const handleDeleteTask = async (id) => { try { await axios.delete(`${API_URL}/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` } }); fetchTasks(selectedEventId); } catch(e){alert('Помилка');} };
     const handleRoleChange = async (uid, role) => { try { await axios.put(`${API_URL}/auth/users/${uid}/role`, {role}, { headers: { Authorization: `Bearer ${token}` } }); setMessage(`Роль змінено на ${role}`); fetchUsers(); } catch(e){ alert('Error'); } };
 
+    // --- НОВА ФУНКЦІЯ: СКИДАННЯ ПАРОЛЯ ---
+    const handleResetPassword = async (userId, userName) => {
+        const isConfirmed = window.confirm(`Ви точно хочете скинути пароль для ${userName} на "12345"?`);
+        if (!isConfirmed) return;
+
+        try {
+            const response = await axios.post(`${API_URL}/admin/reset-password`, 
+                { userId }, 
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            alert(`Успіх! Пароль користувача ${userName} змінено на: 12345`);
+        } catch (error) {
+            console.error(error);
+            alert('Помилка сервера або у вас немає прав адміна.');
+        }
+    };
+
     // --- ЛОГІКА ПОВТОРЕННЯ ---
     const openRepeatModal = (ev) => {
         setEventToRepeat(ev);
@@ -372,10 +389,20 @@ const AdminDashboard = ({ user, API_URL }) => {
                                         {u.role}
                                     </span>
                                 </td>
-                                <td className="px-5 py-4">
+                                <td className="px-5 py-4 flex flex-col gap-2">
                                     <select value={u.role} onChange={(e) => handleRoleChange(u.user_id, e.target.value)} disabled={u.user_id === user.user_id} className="border rounded p-1 text-sm bg-white cursor-pointer hover:border-purple-400">
                                         <option value="User">User</option><option value="Organizer">Organizer</option><option value="Admin">Admin</option><option value="Editor">Editor</option>
                                     </select>
+                                    {/* 👇 НОВА КНОПКА СКИДАННЯ ПАРОЛЯ */}
+                                    {user.role === 'Admin' && u.user_id !== user.user_id && (
+                                        <button 
+                                            onClick={() => handleResetPassword(u.user_id, u.first_name)}
+                                            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1"
+                                            title="Скинути пароль на '12345'"
+                                        >
+                                            🔑 Скинути пароль
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
