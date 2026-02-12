@@ -7,21 +7,7 @@ const router = express.Router();
 // Middleware: Доступ тільки для Адмінів та Організаторів
 const organizerProtect = [protect, restrictTo(['Admin', 'Organizer'])];
 
-// @route   GET /api/events
-// @desc    Отримати ВСІ події (для адмінки)
-router.get('/', organizerProtect, async (req, res) => {
-    try {
-        // Забираємо всі події, відсортовані за датою
-        const result = await db.query('SELECT * FROM events ORDER BY start_datetime DESC');
-        res.status(200).json(result.rows);
-    } catch (err) {
-        console.error('Помилка отримання подій:', err);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
 // @route   GET /api/events/public
-// @desc    Отримати тільки ПУБЛІЧНІ події (для календаря на сайті)
 router.get('/public', async (req, res) => {
     try {
         const result = await db.query(
@@ -34,37 +20,40 @@ router.get('/public', async (req, res) => {
     }
 });
 
-// @route   GET /api/events/:id/details
-// @desc    Детальна інфо про подію + список волонтерів і гостей (Для Адмінки)
+// @route   GET /api/events/:id/details (ДЛЯ СТАТИСТИКИ)
 router.get('/:id/details', organizerProtect, async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. Подія
-        const eventRes = await db.query('SELECT * FROM events WHERE event_id = $1', [id]);
-        if (eventRes.rows.length === 0) return res.status(404).json({ message: 'Подію не знайдено' });
-
-        // 2. Гості (реєстрації)
-        const attendeesRes = await db.query(
-            'SELECT * FROM event_registrations WHERE event_id = $1 ORDER BY created_at DESC', 
-            [id]
-        );
-
-        // 3. Завдання (Tasks)
-        const tasksRes = await db.query('SELECT * FROM volunteer_tasks WHERE event_id = $1', [id]);
-
-        // 4. Волонтери (Signups)
-        const volunteersRes = await db.query(`
-            SELECT vs.*, vt.title as task_title 
+        // 1. Учасники
+        const attendees = await db.query(`SELECT * FROM event_registrations WHERE event_id = $1 ORDER BY created_at DESC`, [id]);
+        
+        // 2. Волонтери (з деталями)
+        const volunteers = await db.query(`
+            SELECT vs.*, t.title as task_title 
             FROM volunteer_signups vs
-            JOIN volunteer_tasks vt ON vs.task_id = vt.task_id
-            WHERE vt.event_id = $1
+            JOIN tasks t ON vs.task_id = t.task_id
+            WHERE t.event_id = $1
+        `, [id]);
+
+        // 3. Завдання (Tasks) - ВИПРАВЛЕНО НАЗВУ ТАБЛИЦІ tasks
+        const tasks = await db.query(`
+            SELECT 
+                t.*,
+                COALESCE(s.signed_up_count, 0) AS signed_up_volunteers
+            FROM tasks t
+            LEFT JOIN (
+                SELECT task_id, COUNT(*) AS signed_up_count
+                FROM volunteer_signups
+                GROUP BY task_id
+            ) s ON s.task_id = t.task_id
+            WHERE t.event_id = $1
+            ORDER BY t.title ASC
         `, [id]);
 
         res.json({
-            event: eventRes.rows[0],
-            attendees: attendeesRes.rows,
-            tasks: tasksRes.rows,
-            volunteers: volunteersRes.rows
+            attendees: attendees.rows,
+            volunteers: volunteers.rows,
+            tasks: tasks.rows
         });
     } catch (err) {
         console.error(err);
@@ -73,7 +62,6 @@ router.get('/:id/details', organizerProtect, async (req, res) => {
 });
 
 // @route   POST /api/events/register
-// @desc    Публічна реєстрація відвідувача
 router.post('/register', async (req, res) => {
     const { event_id, name, contact, adults, children, comment, user_id } = req.body;
 
@@ -87,17 +75,7 @@ router.post('/register', async (req, res) => {
             (event_id, guest_name, guest_contact, adults_count, children_count, comment, user_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
         `;
-        const values = [
-            event_id, 
-            name || 'Unknown', 
-            contact, 
-            adults || 1, 
-            children || 0, 
-            comment || '', 
-            user_id || null
-        ];
-        
-        const result = await db.query(query, values);
+        const result = await db.query(query, [event_id, name || 'Unknown', contact, adults || 1, children || 0, comment || '', user_id || null]);
         res.status(201).json(result.rows[0]);
     } catch (err) {
         console.error(err);
@@ -106,10 +84,9 @@ router.post('/register', async (req, res) => {
 });
 
 // @route   POST /api/events
-// @desc    Створити подію
 router.post('/', organizerProtect, async (req, res) => {
     const { title, category, start_datetime, end_datetime, description, location_name, is_published } = req.body;
-    const organizerId = req.user.user_id; // Беремо ID того, хто створює
+    const organizerId = req.user.user_id;
 
     try {
         const result = await db.query(
@@ -124,14 +101,24 @@ router.post('/', organizerProtect, async (req, res) => {
     }
 });
 
+// @route   GET /api/events
+router.get('/', organizerProtect, async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM events ORDER BY start_datetime DESC');
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error('Помилка отримання подій:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // @route   DELETE /api/events/:id
-// @desc    Видалити подію (Дозволено будь-якому Організатору)
 router.delete('/:id', organizerProtect, async (req, res) => {
     const eventId = req.params.id;
-
     try {
-        // ВИДАЛЕНО ПЕРЕВІРКУ НА АВТОРСТВО. Тепер будь-який Organizer може видаляти.
-        
+        // Видалення без перевірки авторства (Командний режим)
+        await db.query('DELETE FROM volunteer_signups WHERE task_id IN (SELECT task_id FROM tasks WHERE event_id = $1)', [eventId]);
+        await db.query('DELETE FROM tasks WHERE event_id = $1', [eventId]);
         await db.query('DELETE FROM events WHERE event_id = $1', [eventId]);
         res.json({ message: 'Подію успішно видалено' });
     } catch (err) {
@@ -141,18 +128,12 @@ router.delete('/:id', organizerProtect, async (req, res) => {
 });
 
 // @route   PUT /api/events/:id
-// @desc    Редагувати подію (Дозволено будь-якому Організатору)
 router.put('/:id', organizerProtect, async (req, res) => {
     const eventId = req.params.id;
     const { title, category, start_datetime, end_datetime, description, location_name } = req.body;
 
     try {
-        // Перевіряємо, чи існує подія
-        const eventCheck = await db.query('SELECT organizer_id FROM events WHERE event_id = $1', [eventId]);
-        if (eventCheck.rows.length === 0) return res.status(404).json({ message: 'Подію не знайдено' });
-
-        // ВИДАЛЕНО ПЕРЕВІРКУ НА АВТОРСТВО. Тепер будь-який Organizer може редагувати.
-
+        // Редагування без перевірки авторства (Командний режим)
         const queryText = `
             UPDATE events 
             SET title=$1, category=$2, start_datetime=$3, end_datetime=$4, description=$5, location_name=$6
@@ -160,11 +141,33 @@ router.put('/:id', organizerProtect, async (req, res) => {
             RETURNING *
         `;
         const result = await db.query(queryText, [title, category, start_datetime, end_datetime, description, location_name, eventId]);
-
         res.json(result.rows[0]);
     } catch (err) {
         console.error('Помилка редагування:', err);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   GET /api/events/stats/global (ГЛОБАЛЬНА СТАТИСТИКА)
+router.get('/stats/global', organizerProtect, async (req, res) => {
+    try {
+        const stats = {};
+        const eventsCount = await db.query('SELECT COUNT(*) FROM events');
+        stats.total_events = eventsCount.rows[0].count;
+
+        const volCount = await db.query('SELECT COUNT(DISTINCT guest_whatsapp) FROM volunteer_signups');
+        stats.unique_volunteers = volCount.rows[0].count;
+
+        const regCount = await db.query('SELECT SUM(adults_count + children_count) as total_people FROM event_registrations');
+        stats.total_attendees = regCount.rows[0].total_people || 0;
+
+        const futureEvents = await db.query('SELECT COUNT(*) FROM events WHERE start_datetime > NOW()');
+        stats.future_events = futureEvents.rows[0].count;
+
+        res.json(stats);
+    } catch (err) {
+        console.error("Stats error:", err);
+        res.status(500).json({ message: 'Error calculating stats' });
     }
 });
 
