@@ -3,7 +3,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 
-const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { 
+const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { // <--- Приймаємо targetNewsId
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
     // ЗМІНА 1: За замовчуванням відкриваємо 'News', а не 'All'
@@ -114,7 +114,7 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                     return (
                         <div 
                             key={item.news_id} 
-                            id={`news-${item.news_id}`} 
+                            id={`news-${item.news_id}`} // <--- ID ДЛЯ СКРОЛУ
                             className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 flex flex-col md:flex-row hover:shadow-xl transition duration-300"
                         >
                             {item.image_url && (
@@ -161,7 +161,7 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                                         onClick={() => onGoToCalendar(item.event_id, item.event_date)} 
                                         className="mt-6 self-start px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 hover:shadow-lg transition transform active:scale-95 flex items-center gap-2"
                                     >
-                                        📅 Докладніше
+                                        📅 Записатися на подію
                                     </button>
                                 )}
                             </div>
