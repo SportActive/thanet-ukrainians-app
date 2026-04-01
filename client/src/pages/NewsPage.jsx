@@ -6,7 +6,6 @@ import { uk } from 'date-fns/locale';
 const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => { 
     const [news, setNews] = useState([]);
     const [loading, setLoading] = useState(true);
-    // ЗМІНА 1: За замовчуванням відкриваємо 'News', а не 'All'
     const [filter, setFilter] = useState('News'); 
 
     useEffect(() => {
@@ -23,21 +22,24 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         fetchNews();
     }, [API_URL]);
 
-    // --- АВТО-СКРОЛ ТА АВТО-ПЕРЕМИКАННЯ ВКЛАДКИ (ОНОВЛЕНО) ---
+    //КГ 2026 04 01 - Оновлений авто-скрол із правильним очікуванням рендеру
     useEffect(() => {
         if (targetNewsId && !loading && news.length > 0) {
-            // Шукаємо цільовий запис у всьому масиві
+            // Шукаємо цільовий запис
             const targetItem = news.find(n => n.news_id.toString() === targetNewsId.toString());
             
             if (targetItem) {
-                // Перевіряємо, чи потрібно перемкнути вкладку
-                if (targetItem.is_announcement && !targetItem.is_news && filter !== 'Announcement') {
-                    setFilter('Announcement');
-                } else if (targetItem.is_news && filter !== 'News') {
-                    setFilter('News');
+                // Визначаємо, яка вкладка потрібна
+                const shouldBeAnnouncement = targetItem.is_announcement && !targetItem.is_news;
+                const requiredFilter = shouldBeAnnouncement ? 'Announcement' : 'News';
+
+                // Якщо ми не на тій вкладці - перемикаємо і ЧЕКАЄМО
+                if (filter !== requiredFilter) {
+                    setFilter(requiredFilter);
+                    return; // Зупиняємось, чекаємо поки React перемалює сторінку
                 }
 
-                // Даємо React 100 мілісекунд на перемальовування нової вкладки перед скролом
+                // Якщо ми вже на правильній вкладці (після перемальовки) - робимо скрол
                 setTimeout(() => {
                     const element = document.getElementById(`news-${targetNewsId}`);
                     if (element) {
@@ -48,10 +50,8 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                 }, 100);
             }
         }
-    }, [targetNewsId, loading, news]); 
-    // ^ filter спеціально не додаємо в залежності, щоб не викликати нескінченний цикл
+    }, [targetNewsId, loading, news, filter]); // Додали filter у залежності
 
-    // --- ФУНКЦІЯ КОПІЮВАННЯ ПОСИЛАННЯ ---
     const copyLink = (id) => {
         const link = `${window.location.origin}/?news_id=${id}`;
         navigator.clipboard.writeText(link);
@@ -73,19 +73,14 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         ));
     };
 
-    // ЗМІНА 2: Оновлена логіка фільтрації та сортування
     const getProcessedNews = () => {
-        let processed = [...news]; // Створюємо копію масиву
+        let processed = [...news]; 
 
         if (filter === 'News') {
-            // Фільтр: тільки новини
             processed = processed.filter(item => item.is_news);
-            // Сортування: по даті створення (свіжі зверху) -> created_at DESC
             processed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         } else if (filter === 'Announcement') {
-            // Фільтр: тільки анонси
             processed = processed.filter(item => item.is_announcement);
-            // Сортування: по даті події (що раніше - зверху) -> event_date ASC
             processed.sort((a, b) => {
                 const dateA = a.event_date ? new Date(a.event_date) : new Date(0);
                 const dateB = b.event_date ? new Date(b.event_date) : new Date(0);
@@ -104,7 +99,6 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         <div className="max-w-4xl mx-auto p-4 md:p-8 min-h-screen">
             <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">📰 Новини та Анонси</h2>
             
-            {/* ЗМІНА 3: Прибрана кнопка "Всі" */}
             <div className="flex justify-center gap-4 mb-8 flex-wrap">
                 <button 
                     onClick={() => setFilter('News')} 
@@ -123,7 +117,6 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
             <div className="space-y-8">
                 {filteredNews.length === 0 ? <p className="text-center text-gray-500 italic">У цій категорії поки що немає записів.</p> : filteredNews.map(item => {
                     const displayDate = item.event_date ? new Date(item.event_date) : new Date(item.created_at);
-                    // Логіка відображення лейблу дати в залежності від типу (для анонсів важлива дата події)
                     const dateLabel = (filter === 'Announcement' && item.event_date) ? '📅 Дата події:' : '📅 Опубліковано:';
 
                     return (
@@ -143,11 +136,10 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                             )}
                             
                             <div className="p-6 flex flex-col justify-between flex-grow w-full md:w-2/3 relative">
-                                {/* КНОПКА "ПОДІЛИТИСЯ" (СПРАВА ЗВЕРХУ) */}
                                 <button 
                                     onClick={() => copyLink(item.news_id)}
                                     className="absolute top-4 right-4 text-gray-400 hover:text-indigo-600 transition p-1"
-                                    title="Копіювати посилання на цю новину"
+                                    title="Копіювати посилання на цю публікацію"
                                 >
                                     🔗
                                 </button>
