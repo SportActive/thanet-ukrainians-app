@@ -23,18 +23,33 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         fetchNews();
     }, [API_URL]);
 
-    // --- АВТО-СКРОЛ ДО НОВИНИ ---
+    // --- АВТО-СКРОЛ ТА АВТО-ПЕРЕМИКАННЯ ВКЛАДКИ (ОНОВЛЕНО) ---
     useEffect(() => {
         if (targetNewsId && !loading && news.length > 0) {
-            const element = document.getElementById(`news-${targetNewsId}`);
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Додамо тимчасовий ефект підсвітки
-                element.classList.add('ring-4', 'ring-indigo-300');
-                setTimeout(() => element.classList.remove('ring-4', 'ring-indigo-300'), 2000);
+            // Шукаємо цільовий запис у всьому масиві
+            const targetItem = news.find(n => n.news_id.toString() === targetNewsId.toString());
+            
+            if (targetItem) {
+                // Перевіряємо, чи потрібно перемкнути вкладку
+                if (targetItem.is_announcement && !targetItem.is_news && filter !== 'Announcement') {
+                    setFilter('Announcement');
+                } else if (targetItem.is_news && filter !== 'News') {
+                    setFilter('News');
+                }
+
+                // Даємо React 100 мілісекунд на перемальовування нової вкладки перед скролом
+                setTimeout(() => {
+                    const element = document.getElementById(`news-${targetNewsId}`);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        element.classList.add('ring-4', 'ring-indigo-300');
+                        setTimeout(() => element.classList.remove('ring-4', 'ring-indigo-300'), 2000);
+                    }
+                }, 100);
             }
         }
-    }, [targetNewsId, loading, news]);
+    }, [targetNewsId, loading, news]); 
+    // ^ filter спеціально не додаємо в залежності, щоб не викликати нескінченний цикл
 
     // --- ФУНКЦІЯ КОПІЮВАННЯ ПОСИЛАННЯ ---
     const copyLink = (id) => {
