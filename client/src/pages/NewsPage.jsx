@@ -22,41 +22,32 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         fetchNews();
     }, [API_URL]);
 
-    // --- ДЕБАГ: АВТО-СКРОЛ ---
+    // --- ОНОВЛЕНИЙ АВТО-СКРОЛ ТА ПЕРЕМИКАННЯ ВКЛАДКИ ---
     useEffect(() => {
-        console.log("🛠️ DEBUG: Ефект запущено! targetNewsId:", targetNewsId, "| loading:", loading, "| новин завантажено:", news.length, "| поточний filter:", filter);
-
         if (targetNewsId && !loading && news.length > 0) {
+            // Шукаємо цільовий запис
             const targetItem = news.find(n => n.news_id.toString() === targetNewsId.toString());
-            console.log("🛠️ DEBUG: Знайдено новину в масиві:", targetItem);
             
             if (targetItem) {
+                // Визначаємо, яка вкладка потрібна
                 const shouldBeAnnouncement = targetItem.is_announcement && !targetItem.is_news;
                 const requiredFilter = shouldBeAnnouncement ? 'Announcement' : 'News';
-                console.log("🛠️ DEBUG: Потрібна вкладка:", requiredFilter, "| Поточна вкладка:", filter);
 
+                // Якщо ми не на тій вкладці - перемикаємо і ЧЕКАЄМО
                 if (filter !== requiredFilter) {
-                    console.log("🛠️ DEBUG: Перемикаю вкладку на", requiredFilter, "і чекаю...");
                     setFilter(requiredFilter);
-                    return; 
+                    return; // Зупиняємось, чекаємо поки React перемалює сторінку
                 }
 
-                console.log(`🛠️ DEBUG: Вкладка правильна. Шукаю елемент news-${targetNewsId} на екрані...`);
+                // Якщо ми вже на правильній вкладці (після перемальовки) - робимо скрол
                 setTimeout(() => {
                     const element = document.getElementById(`news-${targetNewsId}`);
-                    console.log("🛠️ DEBUG: Результат пошуку елемента в HTML:", !!element);
-                    
                     if (element) {
-                        console.log("🛠️ DEBUG: Скролю до елемента!");
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         element.classList.add('ring-4', 'ring-indigo-300');
                         setTimeout(() => element.classList.remove('ring-4', 'ring-indigo-300'), 2000);
-                    } else {
-                        console.log("❌ DEBUG ERROR: Елемент не знайдено в HTML! Хоча вкладка правильна.");
                     }
                 }, 100);
-            } else {
-                console.log("❌ DEBUG ERROR: Новину з таким ID не знайдено в базі (можливо вона не публічна або видалена).");
             }
         }
     }, [targetNewsId, loading, news, filter]);
@@ -64,7 +55,7 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
     const copyLink = (id) => {
         const link = `${window.location.origin}/?news_id=${id}`;
         navigator.clipboard.writeText(link);
-        alert('✅ Посилання скопійовано!');
+        alert('✅ Посилання скопійовано! Можете відправити його друзям.');
     };
 
     const formatText = (text) => {
@@ -137,6 +128,10 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                             {item.image_url && (
                                 <div className="md:w-1/3 h-48 md:h-auto relative shrink-0 bg-gray-100">
                                     <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
+                                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                                        {item.is_announcement && <span className="px-2 py-1 text-xs font-bold text-white rounded uppercase shadow-sm bg-pink-600 w-fit">Анонс</span>}
+                                        {item.is_news && <span className="px-2 py-1 text-xs font-bold text-white rounded uppercase shadow-sm bg-blue-600 w-fit">Новина</span>}
+                                    </div>
                                 </div>
                             )}
                             
@@ -144,19 +139,37 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
                                 <button 
                                     onClick={() => copyLink(item.news_id)}
                                     className="absolute top-4 right-4 text-gray-400 hover:text-indigo-600 transition p-1"
-                                >🔗</button>
+                                    title="Копіювати посилання на цю публікацію"
+                                >
+                                    🔗
+                                </button>
 
                                 <div>
-                                    <h3 className="text-2xl font-bold text-gray-800 leading-tight break-words w-full pr-8">{item.title}</h3>
-                                    <p className="text-gray-500 text-sm mb-4">{dateLabel} {format(displayDate, 'd MMMM yyyy, HH:mm', { locale: uk })}</p>
-                                    <div className="text-gray-700 leading-relaxed text-base">{formatText(item.content)}</div>
+                                    <div className="flex justify-between items-start mb-2 flex-wrap gap-2 pr-8">
+                                        <h3 className="text-2xl font-bold text-gray-800 leading-tight break-words w-full">{item.title}</h3>
+                                        {!item.image_url && (
+                                            <div className="flex gap-1">
+                                                {item.is_announcement && <span className="px-2 py-1 text-xs font-bold text-white rounded uppercase bg-pink-600">Анонс</span>}
+                                                {item.is_news && <span className="px-2 py-1 text-xs font-bold text-white rounded uppercase bg-blue-600">Новина</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-gray-500 text-sm mb-4 flex items-center gap-1 font-medium">
+                                        {dateLabel} {format(displayDate, 'd MMMM yyyy, HH:mm', { locale: uk })}
+                                    </p>
+                                    
+                                    <div className="text-gray-700 leading-relaxed text-base">
+                                        {formatText(item.content)}
+                                    </div>
                                 </div>
 
                                 {item.event_id && (
                                     <button 
                                         onClick={() => onGoToCalendar(item.event_id, item.event_date)} 
-                                        className="mt-6 self-start px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 hover:shadow-lg transition flex items-center gap-2"
-                                    >📅 Докладніше</button>
+                                        className="mt-6 self-start px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 hover:shadow-lg transition transform active:scale-95 flex items-center gap-2"
+                                    >
+                                        📅 Докладніше
+                                    </button>
                                 )}
                             </div>
                         </div>
