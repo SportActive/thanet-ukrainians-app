@@ -22,32 +22,37 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         fetchNews();
     }, [API_URL]);
 
-    // --- ОНОВЛЕНИЙ АВТО-СКРОЛ ТА ПЕРЕМИКАННЯ ВКЛАДКИ ---
+    // --- ДЕБАГ ТА АВТО-СКРОЛ (ФІНАЛ) ---
     useEffect(() => {
+        console.log("🛠️ DEBUG: Ефект запущено! targetNewsId:", targetNewsId, "| loading:", loading, "| filter:", filter);
+
         if (targetNewsId && !loading && news.length > 0) {
-            // Шукаємо цільовий запис
             const targetItem = news.find(n => n.news_id.toString() === targetNewsId.toString());
+            console.log("🛠️ DEBUG: Знайдено новину:", targetItem);
             
             if (targetItem) {
-                // Визначаємо, яка вкладка потрібна
+                // Якщо є тільки бейдж Анонс (без Новини) - це вкладка Анонсів
                 const shouldBeAnnouncement = targetItem.is_announcement && !targetItem.is_news;
                 const requiredFilter = shouldBeAnnouncement ? 'Announcement' : 'News';
 
-                // Якщо ми не на тій вкладці - перемикаємо і ЧЕКАЄМО
                 if (filter !== requiredFilter) {
+                    console.log("🛠️ DEBUG: Перемикаю вкладку на", requiredFilter);
                     setFilter(requiredFilter);
-                    return; // Зупиняємось, чекаємо поки React перемалює сторінку
+                    return; // Зупиняємось і чекаємо рендеру нової вкладки
                 }
 
-                // Якщо ми вже на правильній вкладці (після перемальовки) - робимо скрол
+                console.log("🛠️ DEBUG: Вкладка правильна. Чекаю 300мс для рендеру і скролю...");
                 setTimeout(() => {
                     const element = document.getElementById(`news-${targetNewsId}`);
+                    console.log("🛠️ DEBUG: Елемент знайдено в HTML:", !!element);
+                    
                     if (element) {
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        element.classList.add('ring-4', 'ring-indigo-300');
-                        setTimeout(() => element.classList.remove('ring-4', 'ring-indigo-300'), 2000);
+                        // Додаємо агресивну червону підсвітку, щоб точно побачити
+                        element.classList.add('ring-4', 'ring-red-500', 'bg-red-50', 'transition-all', 'duration-500');
+                        setTimeout(() => element.classList.remove('ring-4', 'ring-red-500', 'bg-red-50'), 3000);
                     }
-                }, 100);
+                }, 300); // Збільшена затримка для надійності
             }
         }
     }, [targetNewsId, loading, news, filter]);
