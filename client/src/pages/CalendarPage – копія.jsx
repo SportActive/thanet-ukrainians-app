@@ -36,13 +36,6 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
   
   const [isQrSource, setIsQrSource] = useState(false);
 
-  //КГ 2026 04 19 - Функція для ігнорування часового поясу користувача (Floating Time)
-  const parseEventDate = (dateString) => {
-      if (!dateString) return new Date();
-      // Відрізаємо "Z" та мілісекунди, залишаючи тільки YYYY-MM-DDTHH:mm
-      return new Date(dateString.slice(0, 16));
-  };
-
   // 1. Fetch Events
   const fetchEvents = async () => {
     try {
@@ -74,7 +67,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           const eventToOpen = events.find(e => e.event_id === targetEvent.id);
           
           if (eventToOpen) {
-              const dateToSet = targetEvent.date ? new Date(targetEvent.date) : parseEventDate(eventToOpen.start_datetime);
+              const dateToSet = targetEvent.date ? new Date(targetEvent.date) : parseISO(eventToOpen.start_datetime);
               setCurrentDate(dateToSet);
               setSelectedEvent(eventToOpen);
               
@@ -221,7 +214,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
 
   const getEventsForDay = (day) => {
     if (!events || !Array.isArray(events)) return [];
-    return events.filter(event => isSameDay(parseEventDate(event.start_datetime), day));
+    return events.filter(event => isSameDay(parseISO(event.start_datetime), day));
   };
 
   const formatText = (text) => {
@@ -276,7 +269,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                   {dayEvents.length > 0 && <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{dayEvents.length}</span>}
                 </div>
                 <div className="mt-1 space-y-1">
-                  {dayEvents.slice(0, 3).map(ev => (<div key={ev.event_id} className="text-[10px] truncate bg-indigo-50 text-indigo-700 px-1 rounded border-l-2 border-indigo-500">{format(parseEventDate(ev.start_datetime), 'HH:mm')} {ev.title}</div>))}
+                  {dayEvents.slice(0, 3).map(ev => (<div key={ev.event_id} className="text-[10px] truncate bg-indigo-50 text-indigo-700 px-1 rounded border-l-2 border-indigo-500">{format(parseISO(ev.start_datetime), 'HH:mm')} {ev.title}</div>))}
                   {dayEvents.length > 3 && <div className="text-[10px] text-gray-400 pl-1">ще +{dayEvents.length - 3}</div>}
                 </div>
               </div>
@@ -302,7 +295,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
               <div className="p-2 space-y-2 flex-grow">
                 {dayEvents.length === 0 ? (<p className="text-xs text-center text-gray-400 italic mt-4">--</p>) : (dayEvents.map(ev => (
                     <div key={ev.event_id} onClick={(e) => { e.stopPropagation(); openModal(ev); }} className="cursor-pointer bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-md p-2 rounded-lg transition group">
-                      <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{format(parseEventDate(ev.start_datetime), 'HH:mm')}</span></div>
+                      <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{format(parseISO(ev.start_datetime), 'HH:mm')}</span></div>
                       <p className="text-xs font-semibold text-gray-800 leading-snug group-hover:text-indigo-700">{ev.title}</p>
                     </div>
                   )))}
@@ -325,7 +318,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
           <div className="space-y-6">
             {dayEvents.map(event => (
               <div key={event.event_id} className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition border border-gray-100 overflow-hidden flex flex-col md:flex-row">
-                <div className="bg-indigo-600 text-white p-6 flex flex-col justify-center items-center md:w-40 text-center shrink-0"><span className="text-3xl font-bold tracking-tight">{format(parseEventDate(event.start_datetime), 'HH:mm')}</span>{event.end_datetime && (<span className="text-indigo-200 text-sm mt-1">до {format(parseEventDate(event.end_datetime), 'HH:mm')}</span>)}<span className="mt-3 px-3 py-1 bg-white/20 rounded-full text-xs font-medium uppercase tracking-wider backdrop-blur-sm">{event.category || 'Подія'}</span></div>
+                <div className="bg-indigo-600 text-white p-6 flex flex-col justify-center items-center md:w-40 text-center shrink-0"><span className="text-3xl font-bold tracking-tight">{format(parseISO(event.start_datetime), 'HH:mm')}</span>{event.end_datetime && (<span className="text-indigo-200 text-sm mt-1">до {format(parseISO(event.end_datetime), 'HH:mm')}</span>)}<span className="mt-3 px-3 py-1 bg-white/20 rounded-full text-xs font-medium uppercase tracking-wider backdrop-blur-sm">{event.category || 'Подія'}</span></div>
                 <div className="p-6 flex-grow flex flex-col"><h4 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{event.title}</h4><div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-5"><div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg">📍 {event.location_name || 'Локацію не вказано'}</div></div><div className="prose prose-sm text-gray-600 mb-6 max-w-none line-clamp-3"><p>{event.description || 'Опис відсутній.'}</p></div><div className="mt-auto flex gap-3"><button onClick={() => openModal(event)} className="px-6 py-2.5 bg-gray-900 text-white font-semibold rounded-xl shadow hover:bg-gray-800 transition transform active:scale-95">Детальніше / Долучитися</button></div></div>
               </div>
             ))}
@@ -368,7 +361,7 @@ const CalendarPage = ({ API_URL, user, targetEvent, onTargetHandled }) => {
                 <div className="bg-indigo-600 p-6 text-white shrink-0 rounded-t-2xl relative">
                     <button onClick={closeModal} className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl transition">✕</button>
                     <h3 className="text-2xl font-bold pr-8">{selectedEvent.title}</h3>
-                    <p className="opacity-90 mt-1 flex items-center gap-2">🕒 {format(parseEventDate(selectedEvent.start_datetime), 'd MMMM, HH:mm', { locale: uk })}</p>
+                    <p className="opacity-90 mt-1 flex items-center gap-2">🕒 {format(parseISO(selectedEvent.start_datetime), 'd MMMM, HH:mm', { locale: uk })}</p>
                 </div>
 
                 <div className="flex border-b">
