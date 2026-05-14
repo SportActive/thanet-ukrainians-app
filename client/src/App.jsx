@@ -100,24 +100,21 @@ const App = () => {
     const [currentPage, setCurrentPage] = useState('news'); 
     const [isMenuOpen, setIsMenuOpen] = useState(false); 
     
-    // Стан для переходу на конкретну подію
     const [calendarTargetEvent, setCalendarTargetEvent] = useState(null);
     const [targetNewsId, setTargetNewsId] = useState(null);
 
     useEffect(() => {
-        // Перевірка токена при завантаженні
         const token = localStorage.getItem('token');
         if (token) {
             try {
                 const decoded = jwtDecode(token);
                 if (decoded.exp * 1000 > Date.now()) {
-                    // !!! ТУТ МИ ВИТЯГУЄМО ТЕЛЕФОНИ
                     setUser({ 
                         user_id: decoded.user_id, 
                         role: decoded.role, 
                         first_name: decoded.first_name,
-                        whatsapp: decoded.whatsapp, // <--- Важливо
-                        uk_phone: decoded.uk_phone  // <--- Важливо
+                        whatsapp: decoded.whatsapp,
+                        uk_phone: decoded.uk_phone 
                     });
                 } else {
                     localStorage.removeItem('token');
@@ -125,7 +122,6 @@ const App = () => {
             } catch (e) { localStorage.removeItem('token'); }
         }
         
-        // Обробка посилань (Deep Links)
         const params = new URLSearchParams(window.location.search);
         const eventId = params.get('event_id');
         const newsId = params.get('news_id');
@@ -138,13 +134,11 @@ const App = () => {
             setCurrentPage('calendar');
         }
 
-        // Очищаємо URL
         window.history.replaceState({}, document.title, window.location.pathname);
     }, []);
 
     const handleLoginSuccess = (token, userData) => {
         localStorage.setItem('token', token);
-        // !!! ТУТ ТАКОЖ ЗБЕРІГАЄМО ТЕЛЕФОНИ
         setUser({
             user_id: userData.user_id,
             role: userData.role,
@@ -162,7 +156,6 @@ const App = () => {
         setIsMenuOpen(false);
     };
 
-    // Функція переходу на календар
     const handleGoToCalendar = (eventId, eventDate) => {
         setCalendarTargetEvent({ id: eventId, date: eventDate });
         setCurrentPage('calendar');
@@ -171,23 +164,8 @@ const App = () => {
 
     const renderContent = () => {
         switch (currentPage) {
-            case 'news': 
-                return (
-                    <NewsPage 
-                        API_URL={API_URL} 
-                        targetNewsId={targetNewsId} 
-                        onGoToCalendar={handleGoToCalendar} 
-                    />
-                );
-            case 'calendar': 
-                return (
-                    <CalendarPage 
-                        API_URL={API_URL} 
-                        user={user} // Тут тепер є whatsapp, тому поле зникне
-                        targetEvent={calendarTargetEvent} 
-                        onTargetHandled={() => setCalendarTargetEvent(null)} 
-                    />
-                );
+            case 'news': return <NewsPage API_URL={API_URL} targetNewsId={targetNewsId} onGoToCalendar={handleGoToCalendar} />;
+            case 'calendar': return <CalendarPage API_URL={API_URL} user={user} targetEvent={calendarTargetEvent} onTargetHandled={() => setCalendarTargetEvent(null)} />;
             case 'login': return <LoginPage API_URL={API_URL} onLoginSuccess={handleLoginSuccess} />;
             case 'admin': return <AdminDashboard user={user} API_URL={API_URL} />;
             case 'about': return <AboutPage API_URL={API_URL} />;
@@ -212,78 +190,69 @@ const App = () => {
                         </div>
                     </div>
 
-                    <div className="hidden md:flex items-center space-x-1">
-                        <button onClick={() => setCurrentPage('news')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'news' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Новини</button>
-                        <button onClick={() => setCurrentPage('calendar')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'calendar' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Календар</button>
-                        <button onClick={() => setCurrentPage('about')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'about' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Про нас</button>
-                        
-                        {canAccessAdmin && (
-                            <button onClick={() => setCurrentPage('admin')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'admin' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'text-purple-600 hover:bg-purple-50'}`}>Адмінка</button>
-                        )}
+                    <div className="flex items-center gap-2">
+                        {/* ТЕПЕР ПЕРЕКЛАДАЧ ТУТ - ОДИН ДЛЯ ВСІХ */}
+                        <div id="google_translate_element" className="mr-2"></div>
 
-                        {!user ? (
-                            <button onClick={() => setCurrentPage('login')} className="ml-2 px-5 py-2 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 shadow-lg transition transform hover:-translate-y-0.5">Вхід</button>
-                        ) : (
-                            <div className="relative group ml-2 h-10 flex items-center">
-                                {/* Кнопка користувача */}
-                                <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full font-bold text-gray-700 hover:bg-gray-200">
-                                    👤 {user.first_name}
-                                </button>
-                                
-                                {/* МЕНЮ КОРИСТУВАЧА (з виправленням зникання) */}
-                                <div className="absolute right-0 top-full pt-2 w-48 hidden group-hover:block z-50">
-                                    <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
-                                        <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-50">🔐 Змінити пароль</button>
-                                        <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition">Вийти</button>
+                        {/* Кнопки для комп'ютера */}
+                        <div className="hidden md:flex items-center space-x-1">
+                            <button onClick={() => setCurrentPage('news')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'news' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Новини</button>
+                            <button onClick={() => setCurrentPage('calendar')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'calendar' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Календар</button>
+                            <button onClick={() => setCurrentPage('about')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'about' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>Про нас</button>
+                            
+                            {canAccessAdmin && (
+                                <button onClick={() => setCurrentPage('admin')} className={`px-4 py-2 rounded-full font-bold transition ${currentPage === 'admin' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'text-purple-600 hover:bg-purple-50'}`}>Адмінка</button>
+                            )}
+
+                            {!user ? (
+                                <button onClick={() => setCurrentPage('login')} className="ml-2 px-5 py-2 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 shadow-lg transition transform hover:-translate-y-0.5">Вхід</button>
+                            ) : (
+                                <div className="relative group ml-2 h-10 flex items-center">
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full font-bold text-gray-700 hover:bg-gray-200">👤 {user.first_name}</button>
+                                    <div className="absolute right-0 top-full pt-2 w-48 hidden group-hover:block z-50">
+                                        <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
+                                            <button onClick={() => setCurrentPage('change-password')} className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-50">🔐 Змінити пароль</button>
+                                            <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition">Вийти</button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                        
-                        <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="ml-2 px-4 py-2 bg-yellow-400 text-blue-900 rounded-full font-bold hover:bg-yellow-300 shadow-md transition flex items-center gap-2">
-                            ☕ <span className="hidden lg:inline">Донат</span>
-                        </a>
+                            )}
+                            
+                            <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="ml-2 px-4 py-2 bg-yellow-400 text-blue-900 rounded-full font-bold hover:bg-yellow-300 shadow-md transition flex items-center gap-2">
+                                ☕ <span className="hidden lg:inline">Донат</span>
+                            </a>
+                        </div>
 
-                        {/* ДОДАНО: Контейнер для перекладача на комп'ютері */}
-                        <div id="google_translate_element" className="ml-3 mt-1"></div>
+                        {/* Гамбургер для мобілки */}
+                        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-600 text-3xl focus:outline-none ml-2">
+                            {isMenuOpen ? '✕' : '☰'}
+                        </button>
                     </div>
-
-                    <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-600 text-3xl focus:outline-none">
-                        {isMenuOpen ? '✕' : '☰'}
-                    </button>
                 </div>
 
                 {/* МОБІЛЬНЕ МЕНЮ */}
                 {isMenuOpen && (
                     <div className="md:hidden bg-white border-t p-4 space-y-2 shadow-lg animate-fade-in-down">
                         <button onClick={() => {setCurrentPage('news'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'news' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📰 Новини</button>
-                        <button onClick={() => {setCurrentPage('calendar'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'calendar' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📅 Календар Подій</button>
-                        <button onClick={() => {setCurrentPage('about'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'about' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>ℹ️ Про нас / Контакти</button>
-                        
-                        {canAccessAdmin && <button onClick={() => {setCurrentPage('admin'); setIsMenuOpen(false);}} className="w-full text-left p-3 rounded-xl bg-purple-50 text-purple-700 font-bold border border-purple-100 mt-2">⚙️ Адмін Панель</button>}
-                        
+                        <button onClick={() => {setCurrentPage('calendar'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'calendar' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>📅 Календар</button>
+                        <button onClick={() => {setCurrentPage('about'); setIsMenuOpen(false);}} className={`w-full text-left p-3 rounded-xl font-bold ${currentPage === 'about' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'}`}>ℹ️ Про нас</button>
+                        {canAccessAdmin && <button onClick={() => {setCurrentPage('admin'); setIsMenuOpen(false);}} className="w-full text-left p-3 rounded-xl bg-purple-50 text-purple-700 font-bold border border-purple-100 mt-2">⚙️ Адмінка</button>}
                         <div className="border-t my-3"></div>
-                        
                         {!user ? (
                             <button onClick={() => {setCurrentPage('login'); setIsMenuOpen(false);}} className="w-full p-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md">Вхід / Реєстрація</button>
                         ) : (
                             <div className="space-y-2 bg-gray-50 p-3 rounded-xl">
                                 <p className="text-center text-sm text-gray-500 mb-2">Ви увійшли як <strong>{user.first_name}</strong></p>
-                                <button onClick={() => {setCurrentPage('change-password'); setIsMenuOpen(false);}} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-gray-700 font-bold text-sm mb-2">
-                                    🔐 Змінити пароль
-                                </button>
-                                <button onClick={handleLogout} className="w-full p-2 text-red-600 bg-red-100 rounded-lg font-bold hover:bg-red-200 transition text-sm">Вийти з акаунту</button>
+                                <button onClick={() => {setCurrentPage('change-password'); setIsMenuOpen(false);}} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-gray-700 font-bold text-sm mb-2">🔐 Змінити пароль</button>
+                                <button onClick={handleLogout} className="w-full p-2 text-red-600 bg-red-100 rounded-lg font-bold hover:bg-red-200 transition text-sm">Вийти</button>
                             </div>
                         )}
                         <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="block w-full text-center p-3 bg-yellow-400 text-blue-900 rounded-xl font-bold shadow-md mt-2">☕ Підтримати нас</a>
-
-                        {/* ДОДАНО: Контейнер для перекладача на мобільному */}
-                        <div id="google_translate_element" className="flex justify-center mt-4"></div>
                     </div>
                 )}
             </header>
             <main className="flex-grow container mx-auto px-4 py-6 max-w-7xl">{renderContent()}</main>
-            <footer className="bg-white border-t border-gray-200 mt-auto"><div className="container mx-auto px-4 py-6 text-center text-gray-500 text-sm"><p>© 2024 Ukrainians in Thanet. Всі права захищено.</p><p className="mt-1">Разом ми сила 🇺🇦🇬🇧</p></div></footer>
+            <footer className="bg-white border-t border-gray-200 mt-auto"><div className="container mx-auto px-4 py-6 text-center text-gray-500 text-sm"><p>© 2024 Ukrainians in Thanet. Всі права захищено.</p></div></footer>
         </div>
     );
 };
