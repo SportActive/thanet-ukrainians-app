@@ -243,6 +243,9 @@ const App = () => {
                         <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="ml-2 px-4 py-2 bg-yellow-400 text-blue-900 rounded-full font-bold hover:bg-yellow-300 shadow-md transition flex items-center gap-2">
                             ☕ <span className="hidden lg:inline">Донат</span>
                         </a>
+
+                        {/* ДОДАНО: Контейнер для перекладача на комп'ютері */}
+                        <div id="google_translate_element" className="ml-3 mt-1"></div>
                     </div>
 
                     <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-600 text-3xl focus:outline-none">
@@ -273,6 +276,9 @@ const App = () => {
                             </div>
                         )}
                         <a href={DONATE_LINK} target="_blank" rel="noopener noreferrer" className="block w-full text-center p-3 bg-yellow-400 text-blue-900 rounded-xl font-bold shadow-md mt-2">☕ Підтримати нас</a>
+
+                        {/* ДОДАНО: Контейнер для перекладача на мобільному */}
+                        <div id="google_translate_element" className="flex justify-center mt-4"></div>
                     </div>
                 )}
             </header>
