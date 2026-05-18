@@ -8,6 +8,13 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('News'); 
 
+    //КГ 2026 05 18 Функція для ігнорування часового поясу користувача (Floating Time)
+    const parseLocalDate = (dateString) => {
+        if (!dateString) return new Date();
+        // Відрізаємо "Z" та мілісекунди, залишаючи тільки YYYY-MM-DDTHH:mm
+        return new Date(dateString.slice(0, 16));
+    };
+
     useEffect(() => {
         const fetchNews = async () => {
             try {
@@ -87,8 +94,9 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
         } else if (filter === 'Announcement') {
             processed = processed.filter(item => item.is_announcement);
             processed.sort((a, b) => {
-                const dateA = a.event_date ? new Date(a.event_date) : new Date(0);
-                const dateB = b.event_date ? new Date(b.event_date) : new Date(0);
+                //КГ 2026 05 18 Застосовуємо parseLocalDate для правильного сортування
+                const dateA = a.event_date ? parseLocalDate(a.event_date) : new Date(0);
+                const dateB = b.event_date ? parseLocalDate(b.event_date) : new Date(0);
                 return dateA - dateB;
             });
         }
@@ -121,7 +129,8 @@ const NewsPage = ({ API_URL, onGoToCalendar, targetNewsId }) => {
 
             <div className="space-y-8">
                 {filteredNews.length === 0 ? <p className="text-center text-gray-500 italic">У цій категорії поки що немає записів.</p> : filteredNews.map(item => {
-                    const displayDate = item.event_date ? new Date(item.event_date) : new Date(item.created_at);
+                    //КГ 2026 05 18 Застосовуємо парсинг до відображення дати
+                    const displayDate = item.event_date ? parseLocalDate(item.event_date) : parseLocalDate(item.created_at);
                     const dateLabel = (filter === 'Announcement' && item.event_date) ? '📅 Дата події:' : '📅 Опубліковано:';
 
                     return (
